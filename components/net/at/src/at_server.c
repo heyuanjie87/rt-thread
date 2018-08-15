@@ -352,10 +352,10 @@ static char at_server_gerchar(void)
 {
     char ch;
 
-    if (rt_device_read(at_server_local->device, 0, &ch, 1) == 0)
+    while (rt_device_read(at_server_local->device, 0, &ch, 1) == 0)
     {
+        rt_sem_control(at_server_local->rx_notice, RT_IPC_CMD_RESET, RT_NULL);
         rt_sem_take(at_server_local->rx_notice, RT_WAITING_FOREVER);
-        rt_device_read(at_server_local->device, 0, &ch, 1);
     }
 
     return ch;
@@ -433,7 +433,10 @@ __retry:
 
 static rt_err_t at_rx_ind(rt_device_t dev, rt_size_t size)
 {
-    rt_sem_release(at_server_local->rx_notice);
+    if (size > 0)
+    {
+        rt_sem_release(at_server_local->rx_notice);
+    }
 
     return RT_EOK;
 }
