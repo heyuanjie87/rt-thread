@@ -11,15 +11,14 @@
 #define RT_THREAD_PRIORITY_32
 #define RT_THREAD_PRIORITY_MAX 32
 #define RT_TICK_PER_SECOND 1000
-#define RT_DEBUG
 #define RT_USING_OVERFLOW_CHECK
-#define RT_DEBUG_INIT 0
-#define RT_DEBUG_THREAD 0
 #define RT_USING_HOOK
+#define RT_IDEL_HOOK_LIST_SIZE 4
 #define IDLE_THREAD_STACK_SIZE 256
 #define RT_USING_TIMER_SOFT
 #define RT_TIMER_THREAD_PRIO 4
 #define RT_TIMER_THREAD_STACK_SIZE 512
+#define RT_DEBUG
 
 /* Inter-Thread communication */
 
@@ -45,7 +44,7 @@
 /* RT-Thread Components */
 
 #define RT_USING_COMPONENTS_INIT
-#define RT_USING_LWP
+
 /* C++ features */
 
 
@@ -70,22 +69,9 @@
 #define DFS_USING_WORKDIR
 #define DFS_FILESYSTEMS_MAX 4
 #define DFS_FILESYSTEM_TYPES_MAX 4
-#define DFS_FD_MAX 4
-#define RT_USING_DFS_ELMFAT
-#define RT_USING_DFS_XIPFS
-
-/* elm-chan's FatFs, Generic FAT Filesystem Module */
-
-#define RT_DFS_ELM_CODE_PAGE 437
-#define RT_DFS_ELM_WORD_ACCESS
-#define RT_DFS_ELM_USE_LFN_0
-#define RT_DFS_ELM_USE_LFN 0
-#define RT_DFS_ELM_MAX_LFN 255
-#define RT_DFS_ELM_DRIVES 2
-#define RT_DFS_ELM_MAX_SECTOR_SIZE 512
-#define RT_DFS_ELM_REENTRANT
+#define DFS_FD_MAX 8
 #define RT_USING_DFS_DEVFS
-#define RT_USING_DFS_NET
+#define PKG_USING_DFS_LFS
 
 /* Device Drivers */
 
@@ -93,6 +79,11 @@
 #define RT_PIPE_BUFSZ 512
 #define RT_USING_SERIAL
 #define RT_USING_PIN
+#define RT_USING_MTD
+#define MTD_USING_NOR
+
+/* Using WiFi */
+
 #define RT_USING_WIFI
 #define RT_USING_WLAN_STA
 #define RT_USING_WLAN_AP
@@ -107,7 +98,10 @@
 #define RT_USING_LIBC
 #define RT_USING_POSIX
 
-/* Network stack */
+/* Network */
+
+/* Socket abstraction layer */
+
 
 /* light weight TCP/IP stack */
 
@@ -151,11 +145,14 @@
 /* Modbus master and slave stack */
 
 
+/* AT commands */
+
+
 /* VBUS(Virtual Software BUS) */
 
 
 /* Utilities */
-#define RT_USING_RYM
+
 
 /* RT-Thread online packages */
 
@@ -168,6 +165,9 @@
 
 
 /* Wiced WiFi */
+
+
+/* IoT Cloud */
 
 
 /* security packages */
@@ -195,12 +195,15 @@
 
 /* sample package */
 
+/* samples: kernel and components samples */
+
 
 /* example package: hello */
 
 
 /* Env config */
 
+#define SYS_PKGS_DOWNLOAD_ACCELERATE
 #define RT_USING_UART0
 
 #endif

@@ -9,7 +9,6 @@
     </toolchain>
     <debug>1</debug>
     <settings>
-      <name>C-STAT</name>
       <archiveVersion>1</archiveVersion>
       <data>
         <version>1</version>

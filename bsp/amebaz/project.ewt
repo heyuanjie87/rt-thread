@@ -2120,9 +2120,6 @@
     <file>
       <name>$PROJ_DIR$\applications\main.c</name>
     </file>
-    <file>
-      <name>$PROJ_DIR$\..\..\examples\ymodem\tofile.c</name>
-    </file>
   </group>
   <group>
     <name>CORTEX-M4</name>
@@ -2149,6 +2146,12 @@
     </file>
     <file>
       <name>$PROJ_DIR$\..\..\components\drivers\src\dataqueue.c</name>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\components\drivers\mtd\mtd.c</name>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\components\drivers\mtd\mtdnor.c</name>
     </file>
     <file>
       <name>$PROJ_DIR$\..\..\components\drivers\misc\pin.c</name>
@@ -2223,13 +2226,13 @@
       <name>$PROJ_DIR$\drivers\board.c</name>
     </file>
     <file>
+      <name>$PROJ_DIR$\drivers\drv_nor.c</name>
+    </file>
+    <file>
       <name>$PROJ_DIR$\drivers\drv_uart.c</name>
     </file>
     <file>
       <name>$PROJ_DIR$\drivers\drv_wifi.c</name>
-    </file>
-    <file>
-      <name>$PROJ_DIR$\drivers\drv_xipfs.c</name>
     </file>
   </group>
   <group>
@@ -2241,9 +2244,6 @@
       <name>$PROJ_DIR$\..\..\components\dfs\src\dfs.c</name>
     </file>
     <file>
-      <name>$PROJ_DIR$\..\..\components\dfs\filesystems\elmfat\dfs_elm.c</name>
-    </file>
-    <file>
       <name>$PROJ_DIR$\..\..\components\dfs\src\dfs_file.c</name>
     </file>
     <file>
@@ -2253,19 +2253,19 @@
       <name>$PROJ_DIR$\..\..\components\dfs\src\dfs_posix.c</name>
     </file>
     <file>
-      <name>$PROJ_DIR$\..\..\components\dfs\filesystems\xipfs\dfs_xipfs.c</name>
+      <name>$PROJ_DIR$\..\..\components\dfs\filesystems\littlefs_rtt_port\lfs.c</name>
     </file>
     <file>
-      <name>$PROJ_DIR$\..\..\components\dfs\filesystems\elmfat\ff.c</name>
+      <name>$PROJ_DIR$\..\..\components\dfs\filesystems\littlefs_rtt_port\lfs_dfs.c</name>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\components\dfs\filesystems\littlefs_rtt_port\lfs_util.c</name>
     </file>
     <file>
       <name>$PROJ_DIR$\..\..\components\dfs\src\poll.c</name>
     </file>
     <file>
       <name>$PROJ_DIR$\..\..\components\dfs\src\select.c</name>
-    </file>
-    <file>
-      <name>$PROJ_DIR$\..\..\components\dfs\filesystems\xipfs\xipfs.c</name>
     </file>
   </group>
   <group>
@@ -2473,24 +2473,6 @@
     </file>
   </group>
   <group>
-    <name>lwP</name>
-    <file>
-      <name>$PROJ_DIR$\..\..\components\lwp\lwp.c</name>
-    </file>
-    <file>
-      <name>$PROJ_DIR$\..\..\components\lwp\arch\arm\cortex-m4\lwp_iar.S</name>
-    </file>
-    <file>
-      <name>$PROJ_DIR$\..\..\components\lwp\lwp_mem.c</name>
-    </file>
-    <file>
-      <name>$PROJ_DIR$\..\..\components\lwp\lwp_memheap.c</name>
-    </file>
-    <file>
-      <name>$PROJ_DIR$\..\..\components\lwp\lwp_syscall.c</name>
-    </file>
-  </group>
-  <group>
     <name>mbed</name>
     <file>
       <name>$PROJ_DIR$\packages\realtek_ameba-latest\sdk-ameba-v4.0b_without_NDA_GCC_V1.0.0\component\common\mbed\targets\hal\rtl8711b\analogin_api.c</name>
@@ -2599,12 +2581,6 @@
     </file>
     <file>
       <name>$PROJ_DIR$\packages\realtek_ameba-latest\sdk-ameba-v4.0b_without_NDA_GCC_V1.0.0\component\soc\realtek\8711b\cmsis\device\system_8195a.c</name>
-    </file>
-  </group>
-  <group>
-    <name>Utilities</name>
-    <file>
-      <name>$PROJ_DIR$\..\..\components\utilities\ymodem\ymodem.c</name>
     </file>
   </group>
 </project>

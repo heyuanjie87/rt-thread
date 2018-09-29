@@ -24,12 +24,11 @@
 
 int main(void)
 {
-  int *ad = (int*)0x80FF000;
     rt_kprintf("build time: %s %s\n", __DATE__, __TIME__);
     rt_kprintf("Hello RT-Thread!\n");
     
-    dfs_mount("nor0", "/", "xipfs", 0, 0);
-    rt_kprintf("xx %X\n", *ad);
+    dfs_mount("nor1", "/", "lfs", 0, 0);
+
     return 0;
 }
 

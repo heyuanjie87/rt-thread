@@ -14,6 +14,9 @@ if GetDepend(['RT_USING_LWIP']):
 		drv_wifi.c
 		''')
 
+if GetDepend(['MTD_USING_NOR']):
+	src += ['drv_nor.c']
+
 CPPPATH = [cwd]
 
 group = DefineGroup('Drivers', src, depend = [''], CPPPATH = CPPPATH)

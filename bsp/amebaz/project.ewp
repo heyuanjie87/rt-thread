@@ -315,13 +315,12 @@
           <state>$PROJ_DIR$\packages\realtek_ameba-latest\rtthread_patch\realtek\8711b\include</state>
           <state>$PROJ_DIR$\..\..\include</state>
           <state>$PROJ_DIR$\packages\realtek_ameba-latest\sdk-ameba-v4.0b_without_NDA_GCC_V1.0.0\component\soc\realtek\8711b\app\monitor\include</state>
-          <state>$PROJ_DIR$\..\..\components\dfs\filesystems\net</state>
           <state>$PROJ_DIR$\..\..\libcpu\arm\common</state>
           <state>$PROJ_DIR$\packages\realtek_ameba-latest\sdk-ameba-v4.0b_without_NDA_GCC_V1.0.0\component\os\os_dep\include</state>
           <state>$PROJ_DIR$\..\..\components\drivers\include</state>
           <state>$PROJ_DIR$\packages\realtek_ameba-latest\sdk-ameba-v4.0b_without_NDA_GCC_V1.0.0\component\os\freertos\freertos_v8.1.2\Source\include</state>
           <state>$PROJ_DIR$\packages\realtek_ameba-latest\sdk-ameba-v4.0b_without_NDA_GCC_V1.0.0\component\common\api\wifi\rtw_wpa_supplicant\src</state>
-          <state>$PROJ_DIR$\..\..\components\drivers\wlan</state>
+          <state>$PROJ_DIR$\..\..\components\net\lwip-1.4.1\src\include\posix</state>
           <state>$PROJ_DIR$\drivers</state>
           <state>$PROJ_DIR$\..\..\components\net\lwip-1.4.1\src\include\netif</state>
           <state>$PROJ_DIR$\..\..\libcpu\arm\cortex-m4</state>
@@ -330,25 +329,22 @@
           <state>$PROJ_DIR$\..\..\components\net\lwip-1.4.1\src\include</state>
           <state>$PROJ_DIR$\packages\realtek_ameba-latest\sdk-ameba-v4.0b_without_NDA_GCC_V1.0.0\component\soc\realtek\8711b\cmsis\device</state>
           <state>$PROJ_DIR$\..\..\components\dfs\include</state>
-          <state>$PROJ_DIR$\..\..\components\dfs\filesystems\xipfs</state>
           <state>$PROJ_DIR$\packages\realtek_ameba-latest\sdk-ameba-v4.0b_without_NDA_GCC_V1.0.0\component\soc\realtek\8711b\swlib\std_lib\libc\rom\string</state>
           <state>$PROJ_DIR$\packages\realtek_ameba-latest\sdk-ameba-v4.0b_without_NDA_GCC_V1.0.0\component\common\mbed\hal</state>
-          <state>$PROJ_DIR$\..\..\components\dfs\filesystems\net\socket</state>
-          <state>$PROJ_DIR$\..\..\components\utilities\ymodem</state>
           <state>$PROJ_DIR$\packages\realtek_ameba-latest\sdk-ameba-v4.0b_without_NDA_GCC_V1.0.0\component\common\mbed\hal_ext</state>
           <state>$PROJ_DIR$\packages\realtek_ameba-latest\sdk-ameba-v4.0b_without_NDA_GCC_V1.0.0\component\soc</state>
+          <state>$PROJ_DIR$\..\..\components\dfs\filesystems\littlefs_rtt_port</state>
           <state>$PROJ_DIR$\packages\realtek_ameba-latest\sdk-ameba-v4.0b_without_NDA_GCC_V1.0.0\component\os\freertos</state>
           <state>$PROJ_DIR$\applications</state>
           <state>$PROJ_DIR$\packages\realtek_ameba-latest\sdk-ameba-v4.0b_without_NDA_GCC_V1.0.0\component\common\network\ssl\polarssl-1.3.8\include</state>
           <state>$PROJ_DIR$\drivers\wlan</state>
           <state>$PROJ_DIR$\packages\realtek_ameba-latest\sdk-ameba-v4.0b_without_NDA_GCC_V1.0.0\component\os\freertos\freertos_v8.1.2\Source\portable\IAR\ARM_CM4F</state>
           <state>$PROJ_DIR$\..\..\components\net\lwip-1.4.1\src\include\ipv4</state>
-          <state>$PROJ_DIR$\..\..\components\dfs\filesystems\net\select</state>
           <state>$PROJ_DIR$\..\..\components\finsh</state>
           <state>$PROJ_DIR$\packages\realtek_ameba-latest\sdk-ameba-v4.0b_without_NDA_GCC_V1.0.0\component\soc\realtek\8711b\cmsis</state>
           <state>$PROJ_DIR$\packages\realtek_ameba-latest\sdk-ameba-v4.0b_without_NDA_GCC_V1.0.0\component\soc\realtek\8711b\swlib\rtl_lib</state>
           <state>$PROJ_DIR$\packages\realtek_ameba-latest\rtthread_patch\os</state>
-          <state>$PROJ_DIR$\..\..\components\dfs\filesystems\elmfat</state>
+          <state>$PROJ_DIR$\..\..\components\drivers\wlan</state>
           <state>$PROJ_DIR$\packages\realtek_ameba-latest\sdk-ameba-v4.0b_without_NDA_GCC_V1.0.0\component\soc\realtek\8711b\fwlib\include</state>
           <state>$PROJ_DIR$\packages\realtek_ameba-latest\sdk-ameba-v4.0b_without_NDA_GCC_V1.0.0\component\common\drivers\wlan\realtek\src\osdep</state>
           <state>$PROJ_DIR$\packages\realtek_ameba-latest\sdk-ameba-v4.0b_without_NDA_GCC_V1.0.0\component\common\network\ssl\ssl_ram_map\rom</state>
@@ -357,7 +353,6 @@
           <state>$PROJ_DIR$\packages\realtek_ameba-latest\sdk-ameba-v4.0b_without_NDA_GCC_V1.0.0\component\common\api\wifi</state>
           <state>$PROJ_DIR$\packages\realtek_ameba-latest\sdk-ameba-v4.0b_without_NDA_GCC_V1.0.0\component\common\mbed\api</state>
           <state>$PROJ_DIR$\packages\realtek_ameba-latest\sdk-ameba-v4.0b_without_NDA_GCC_V1.0.0\component\common\mbed\targets\hal\rtl8711b</state>
-          <state>$PROJ_DIR$\..\..\components\lwp</state>
         </option>
         <option>
           <name>CCStdIncCheck</name>
@@ -1321,13 +1316,12 @@
           <state>$PROJ_DIR$\packages\realtek_ameba-latest\rtthread_patch\realtek\8711b\include</state>
           <state>$PROJ_DIR$\..\..\include</state>
           <state>$PROJ_DIR$\packages\realtek_ameba-latest\sdk-ameba-v4.0b_without_NDA_GCC_V1.0.0\component\soc\realtek\8711b\app\monitor\include</state>
-          <state>$PROJ_DIR$\..\..\components\dfs\filesystems\net</state>
           <state>$PROJ_DIR$\..\..\libcpu\arm\common</state>
           <state>$PROJ_DIR$\packages\realtek_ameba-latest\sdk-ameba-v4.0b_without_NDA_GCC_V1.0.0\component\os\os_dep\include</state>
           <state>$PROJ_DIR$\..\..\components\drivers\include</state>
           <state>$PROJ_DIR$\packages\realtek_ameba-latest\sdk-ameba-v4.0b_without_NDA_GCC_V1.0.0\component\os\freertos\freertos_v8.1.2\Source\include</state>
           <state>$PROJ_DIR$\packages\realtek_ameba-latest\sdk-ameba-v4.0b_without_NDA_GCC_V1.0.0\component\common\api\wifi\rtw_wpa_supplicant\src</state>
-          <state>$PROJ_DIR$\..\..\components\drivers\wlan</state>
+          <state>$PROJ_DIR$\..\..\components\net\lwip-1.4.1\src\include\posix</state>
           <state>$PROJ_DIR$\drivers</state>
           <state>$PROJ_DIR$\..\..\components\net\lwip-1.4.1\src\include\netif</state>
           <state>$PROJ_DIR$\..\..\libcpu\arm\cortex-m4</state>
@@ -1336,25 +1330,22 @@
           <state>$PROJ_DIR$\..\..\components\net\lwip-1.4.1\src\include</state>
           <state>$PROJ_DIR$\packages\realtek_ameba-latest\sdk-ameba-v4.0b_without_NDA_GCC_V1.0.0\component\soc\realtek\8711b\cmsis\device</state>
           <state>$PROJ_DIR$\..\..\components\dfs\include</state>
-          <state>$PROJ_DIR$\..\..\components\dfs\filesystems\xipfs</state>
           <state>$PROJ_DIR$\packages\realtek_ameba-latest\sdk-ameba-v4.0b_without_NDA_GCC_V1.0.0\component\soc\realtek\8711b\swlib\std_lib\libc\rom\string</state>
           <state>$PROJ_DIR$\packages\realtek_ameba-latest\sdk-ameba-v4.0b_without_NDA_GCC_V1.0.0\component\common\mbed\hal</state>
-          <state>$PROJ_DIR$\..\..\components\dfs\filesystems\net\socket</state>
-          <state>$PROJ_DIR$\..\..\components\utilities\ymodem</state>
           <state>$PROJ_DIR$\packages\realtek_ameba-latest\sdk-ameba-v4.0b_without_NDA_GCC_V1.0.0\component\common\mbed\hal_ext</state>
           <state>$PROJ_DIR$\packages\realtek_ameba-latest\sdk-ameba-v4.0b_without_NDA_GCC_V1.0.0\component\soc</state>
+          <state>$PROJ_DIR$\..\..\components\dfs\filesystems\littlefs_rtt_port</state>
           <state>$PROJ_DIR$\packages\realtek_ameba-latest\sdk-ameba-v4.0b_without_NDA_GCC_V1.0.0\component\os\freertos</state>
           <state>$PROJ_DIR$\applications</state>
           <state>$PROJ_DIR$\packages\realtek_ameba-latest\sdk-ameba-v4.0b_without_NDA_GCC_V1.0.0\component\common\network\ssl\polarssl-1.3.8\include</state>
           <state>$PROJ_DIR$\drivers\wlan</state>
           <state>$PROJ_DIR$\packages\realtek_ameba-latest\sdk-ameba-v4.0b_without_NDA_GCC_V1.0.0\component\os\freertos\freertos_v8.1.2\Source\portable\IAR\ARM_CM4F</state>
           <state>$PROJ_DIR$\..\..\components\net\lwip-1.4.1\src\include\ipv4</state>
-          <state>$PROJ_DIR$\..\..\components\dfs\filesystems\net\select</state>
           <state>$PROJ_DIR$\..\..\components\finsh</state>
           <state>$PROJ_DIR$\packages\realtek_ameba-latest\sdk-ameba-v4.0b_without_NDA_GCC_V1.0.0\component\soc\realtek\8711b\cmsis</state>
           <state>$PROJ_DIR$\packages\realtek_ameba-latest\sdk-ameba-v4.0b_without_NDA_GCC_V1.0.0\component\soc\realtek\8711b\swlib\rtl_lib</state>
           <state>$PROJ_DIR$\packages\realtek_ameba-latest\rtthread_patch\os</state>
-          <state>$PROJ_DIR$\..\..\components\dfs\filesystems\elmfat</state>
+          <state>$PROJ_DIR$\..\..\components\drivers\wlan</state>
           <state>$PROJ_DIR$\packages\realtek_ameba-latest\sdk-ameba-v4.0b_without_NDA_GCC_V1.0.0\component\soc\realtek\8711b\fwlib\include</state>
           <state>$PROJ_DIR$\packages\realtek_ameba-latest\sdk-ameba-v4.0b_without_NDA_GCC_V1.0.0\component\common\drivers\wlan\realtek\src\osdep</state>
           <state>$PROJ_DIR$\packages\realtek_ameba-latest\sdk-ameba-v4.0b_without_NDA_GCC_V1.0.0\component\common\network\ssl\ssl_ram_map\rom</state>
@@ -1363,7 +1354,6 @@
           <state>$PROJ_DIR$\packages\realtek_ameba-latest\sdk-ameba-v4.0b_without_NDA_GCC_V1.0.0\component\common\api\wifi</state>
           <state>$PROJ_DIR$\packages\realtek_ameba-latest\sdk-ameba-v4.0b_without_NDA_GCC_V1.0.0\component\common\mbed\api</state>
           <state>$PROJ_DIR$\packages\realtek_ameba-latest\sdk-ameba-v4.0b_without_NDA_GCC_V1.0.0\component\common\mbed\targets\hal\rtl8711b</state>
-          <state>$PROJ_DIR$\..\..\components\lwp</state>
         </option>
         <option>
           <name>CCStdIncCheck</name>
@@ -2040,9 +2030,6 @@
     <file>
       <name>$PROJ_DIR$\applications\main.c</name>
     </file>
-    <file>
-      <name>$PROJ_DIR$\..\..\examples\ymodem\tofile.c</name>
-    </file>
   </group>
   <group>
     <name>CORTEX-M4</name>
@@ -2069,6 +2056,12 @@
     </file>
     <file>
       <name>$PROJ_DIR$\..\..\components\drivers\src\dataqueue.c</name>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\components\drivers\mtd\mtd.c</name>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\components\drivers\mtd\mtdnor.c</name>
     </file>
     <file>
       <name>$PROJ_DIR$\..\..\components\drivers\misc\pin.c</name>
@@ -2143,13 +2136,13 @@
       <name>$PROJ_DIR$\drivers\board.c</name>
     </file>
     <file>
+      <name>$PROJ_DIR$\drivers\drv_nor.c</name>
+    </file>
+    <file>
       <name>$PROJ_DIR$\drivers\drv_uart.c</name>
     </file>
     <file>
       <name>$PROJ_DIR$\drivers\drv_wifi.c</name>
-    </file>
-    <file>
-      <name>$PROJ_DIR$\drivers\drv_xipfs.c</name>
     </file>
   </group>
   <group>
@@ -2161,9 +2154,6 @@
       <name>$PROJ_DIR$\..\..\components\dfs\src\dfs.c</name>
     </file>
     <file>
-      <name>$PROJ_DIR$\..\..\components\dfs\filesystems\elmfat\dfs_elm.c</name>
-    </file>
-    <file>
       <name>$PROJ_DIR$\..\..\components\dfs\src\dfs_file.c</name>
     </file>
     <file>
@@ -2173,19 +2163,19 @@
       <name>$PROJ_DIR$\..\..\components\dfs\src\dfs_posix.c</name>
     </file>
     <file>
-      <name>$PROJ_DIR$\..\..\components\dfs\filesystems\xipfs\dfs_xipfs.c</name>
+      <name>$PROJ_DIR$\..\..\components\dfs\filesystems\littlefs_rtt_port\lfs.c</name>
     </file>
     <file>
-      <name>$PROJ_DIR$\..\..\components\dfs\filesystems\elmfat\ff.c</name>
+      <name>$PROJ_DIR$\..\..\components\dfs\filesystems\littlefs_rtt_port\lfs_dfs.c</name>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\components\dfs\filesystems\littlefs_rtt_port\lfs_util.c</name>
     </file>
     <file>
       <name>$PROJ_DIR$\..\..\components\dfs\src\poll.c</name>
     </file>
     <file>
       <name>$PROJ_DIR$\..\..\components\dfs\src\select.c</name>
-    </file>
-    <file>
-      <name>$PROJ_DIR$\..\..\components\dfs\filesystems\xipfs\xipfs.c</name>
     </file>
   </group>
   <group>
@@ -2393,24 +2383,6 @@
     </file>
   </group>
   <group>
-    <name>lwP</name>
-    <file>
-      <name>$PROJ_DIR$\..\..\components\lwp\lwp.c</name>
-    </file>
-    <file>
-      <name>$PROJ_DIR$\..\..\components\lwp\arch\arm\cortex-m4\lwp_iar.S</name>
-    </file>
-    <file>
-      <name>$PROJ_DIR$\..\..\components\lwp\lwp_mem.c</name>
-    </file>
-    <file>
-      <name>$PROJ_DIR$\..\..\components\lwp\lwp_memheap.c</name>
-    </file>
-    <file>
-      <name>$PROJ_DIR$\..\..\components\lwp\lwp_syscall.c</name>
-    </file>
-  </group>
-  <group>
     <name>mbed</name>
     <file>
       <name>$PROJ_DIR$\packages\realtek_ameba-latest\sdk-ameba-v4.0b_without_NDA_GCC_V1.0.0\component\common\mbed\targets\hal\rtl8711b\analogin_api.c</name>
@@ -2519,12 +2491,6 @@
     </file>
     <file>
       <name>$PROJ_DIR$\packages\realtek_ameba-latest\sdk-ameba-v4.0b_without_NDA_GCC_V1.0.0\component\soc\realtek\8711b\cmsis\device\system_8195a.c</name>
-    </file>
-  </group>
-  <group>
-    <name>Utilities</name>
-    <file>
-      <name>$PROJ_DIR$\..\..\components\utilities\ymodem\ymodem.c</name>
     </file>
   </group>
 </project>

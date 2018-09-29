@@ -21,7 +21,6 @@
 #include "ipc/waitqueue.h"
 #include "ipc/pipe.h"
 #include "ipc/poll.h"
-#include "ipc/ringblk_buf.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -104,7 +103,7 @@ extern "C" {
 #endif
 
 #ifdef RT_USING_WIFI
-#include "drivers/wlan.h"
+//#include "drivers/wlan.h"
 #endif
 
 #ifdef MTD_USING_NOR
