@@ -110,4 +110,13 @@ rt_err_t ry(char *dname)
     return res;
 }
 FINSH_FUNCTION_EXPORT(ry, receive files by ymodem protocol);
+
+void yload(int argc, char **argv)
+{
+    if (argc < 2)
+        return;
+
+    ry(argv[1]);
+}
+MSH_CMD_EXPORT(yload, ymodem);
 #endif

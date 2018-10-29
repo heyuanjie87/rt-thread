@@ -311,11 +311,6 @@ static void lwp_cleanup(struct rt_thread *tid)
     rt_lwp_mem_deinit(lwp);
 
     /* cleanup fd table */
-    while (lwp->fdt.maxfd > 0)
-    {
-        lwp->fdt.maxfd --;
-        close(lwp->fdt.maxfd);
-    }
     rt_free(lwp->fdt.fds);
     rt_free(lwp->args);
 
