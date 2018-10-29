@@ -32,9 +32,9 @@
 #if (defined(RT_USING_SAL) && defined(SAL_USING_POSIX))
 #include <sys/socket.h>
 
-#define SYSCALL_NET(f) (f)
+#define SYSCALL_NET(f) ((void*)(f))
 #else
-#define SYSCALL_NET(f) (sys_notimpl)
+#define SYSCALL_NET(f) ((void*)sys_notimpl)
 #endif
 
 #define DBG_ENABLE
@@ -43,14 +43,29 @@
 #define DBG_LEVEL           DBG_WARNING
 #include <rtdbg.h>
 
+static void __exit_files(rt_thread_t *tid)
+{
+    struct rt_lwp *lwp;
+
+    lwp = (struct rt_lwp *)tid->lwp;
+    while (lwp->fdt.maxfd > 0)
+    {
+        lwp->fdt.maxfd --;
+        close(lwp->fdt.maxfd);
+    }
+}
+
 /* thread/process */
 void sys_exit(int value)
 {
+    rt_thread_t *tid;
+
     /* TODO: handle the return_value */
 
     dbg_log(DBG_LOG, "enter sys_exit\n");
-
-    rt_thread_delete(rt_thread_self());
+    tid = rt_thread_self();
+    __exit_files(tid);
+    rt_thread_delete(tid);
 
     rt_schedule();
 
@@ -242,7 +257,7 @@ const static void* func_table[] =
     (void *)sys_free,           // 0x0e
     (void *)sys_realloc,      //0x0f
     (void *)sys_fstat,           // 0x10
-    poll,                        // 0x11
+    (void *)poll,                // 0x11
 
     SYSCALL_NET(accept),     // 0x12
     SYSCALL_NET(bind),       // 0x13
@@ -259,7 +274,7 @@ const static void* func_table[] =
     SYSCALL_NET(sendto),     // 0x1e
     SYSCALL_NET(socket),     // 0x1f
 
-    select,                  // 0x20
+    (void *)select,          // 0x20
 };
 
 const void *lwp_get_sys_api(rt_uint32_t number)
