@@ -88,21 +88,21 @@ SVC_Handler    PROC
 
     POP     {R2}             ; pop api to R2.
     POP     {R1}             ; pop app SP to R1.
-    
-	stmfd     r0!, {r1}
-	
-	;push app parm5~6 to Server SP
-	STMFD   R0!,  {R4 - R5}
-    ; copy R1(app SP) to R0(server SP).
-	push {r8-r11}
+
+    stmfd     r0!, {r1}      ; save app SP to kernel SP
+
+    ;push app parm5~6 to kernel SP
+    STMFD   R0!,  {R4 - R5}
+    ; copy R1(app SP) to R0(kernel SP).
+    push {r8-r11}
     LDMFD   R1,   {R4 - R11}     ; pop exception_stack_frame to r4 - r11 register
     STMFD   R0!,  {R4 - R11}     ; push exception_stack_frame to server SP.
-	pop {r8-r11}
+    pop {r8-r11}
 
-	LDR     R3, =svc_exit
+    LDR     R3, =svc_exit
     STR     R3, [R0, #20]       ; update LR
     STR     R2, [R0, #24]       ; update api to PC
-    MSR     PSP, R0             ; update stack pointer
+    MSR     PSP, R0             ; update SP, API is executed with kernel SP
 
     ;BL      lwp_set_kernel_sp
 
@@ -113,9 +113,7 @@ SVC_Handler    PROC
     MSR     CONTROL, R3
 
     POP     {LR}                ; 0xFFFFFFED
-
     ORR     LR, LR, #0x10
-
     BX      LR
 
     ENDP
@@ -129,19 +127,18 @@ svc_exit     PROC
     ; get user SP.
     PUSH    {R0}                    ; push result to SP.
     BL      lwp_get_kernel_sp
- 
-    ldr   r3, [r0, #-4]
+    ldr     r3, [r0, #-4]
     pop {r0}
 
     ldr     lr, [r3, #20]
-	ldr r1, [r3,#24]
-	add r3,#32
-	MSR     PSP, R3                 ; restore app stack pointer
+    ldr     r1, [r3, #24]           ; load pc
+    add     r3, #32                 ; exception_stack_frame size
+    MSR     PSP, R3                 ; restore app stack pointer
     ; restore to PSP & thread-unprivilege mode.
     MRS     R2, CONTROL
     ORR     R2, R2, #0x03
     MSR     CONTROL, R2
-    
+
     ; return to lwp.
     ORR     R1, R1, #0x01           ; only Thumb-mode.
     BX      R1                      ; return to user app.
