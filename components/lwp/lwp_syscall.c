@@ -279,7 +279,7 @@ const static void* func_table[] =
 
 const void *lwp_get_sys_api(rt_uint32_t number)
 {
-    const void *func = sys_notimpl;
+    const void *func = (const void*)sys_notimpl;
 
     if (number == 0xff)
     {
