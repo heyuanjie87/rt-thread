@@ -13,6 +13,10 @@
 #include <rtdevice.h>
 #include <drivers/usb_device.h>
 #include "winusb.h"
+#ifdef RT_USING_POSIX
+#include <dfs_file.h>
+#endif
+
 struct winusb_device
 {
     struct rt_device parent;
@@ -20,6 +24,10 @@ struct winusb_device
     rt_uint8_t cmd_buff[256];
     uep_t ep_out;
     uep_t ep_in;
+#ifdef RT_USING_POSIX
+    struct rt_wqueue wq;
+    struct rt_wqueue rq;
+#endif
 };
 
 typedef struct winusb_device * winusb_device_t;
@@ -141,6 +149,9 @@ static rt_err_t _ep_out_handler(ufunction_t func, rt_size_t size)
     {
         winusb_device->parent.rx_indicate(&winusb_device->parent, size);
     }
+#ifdef RT_USING_POSIX
+    rt_wqueue_wakeup(&(winusb_device->rq), (void*)POLLIN);
+#endif
     return RT_EOK;
 }
 
@@ -151,6 +162,9 @@ static rt_err_t _ep_in_handler(ufunction_t func, rt_size_t size)
     {
         winusb_device->parent.tx_complete(&winusb_device->parent, winusb_device->ep_in->buffer);
     }
+#ifdef RT_USING_POSIX
+    rt_wqueue_wakeup(&(winusb_device->wq), (void*)POLLOUT);
+#endif
     return RT_EOK;
 }
 static ufunction_t cmd_func = RT_NULL;
@@ -275,8 +289,91 @@ const static struct rt_device_ops winusb_device_ops =
 };
 #endif
 
+#if 1//def RT_USING_POSIX
+static int _file_open(struct dfs_fd *fd)
+{
+    return 0;
+}
+
+static int _file_close(struct dfs_fd *fd)
+{
+    return 0;
+}
+
+static int _file_ioctl(struct dfs_fd *fd, int cmd, void *args)
+{
+    return 0;
+}
+
+static int _file_read(struct dfs_fd *fd, void *buf, size_t size)
+{
+    struct winusb_device *wd;
+    struct ufunction *f;
+
+    wd = (struct winusb_device *)fd->data;
+    f = (struct ufunction *)wd->parent.user_data;
+
+    if (!f->enabled)
+        return -1;
+
+    wd->ep_out->buffer = buf;
+    wd->ep_out->request.buffer = buf;
+    wd->ep_out->request.size = size;
+    wd->ep_out->request.req_type = UIO_REQUEST_READ_FULL;
+    rt_usbd_io_request(f->device, wd->ep_out, &wd->ep_out->request);
+
+    return 0;
+}
+
+static int _file_write(struct dfs_fd *fd, const void *buf, size_t size)
+{
+    struct winusb_device *wd;
+    struct ufunction *f;
+
+    wd = (struct winusb_device *)fd->data;
+    f = (struct ufunction *)wd->parent.user_data;
+
+    wd->ep_in->buffer = (void *)buf;
+    wd->ep_in->request.buffer = wd->ep_in->buffer;
+    wd->ep_in->request.size = size;
+    wd->ep_in->request.req_type = UIO_REQUEST_WRITE;
+    rt_usbd_io_request(f->device, wd->ep_in, &wd->ep_in->request);
+
+    return 0;
+}
+
+static int _file_poll(struct dfs_fd *fd, struct rt_pollreq *req)
+{
+    int mask = 0;
+    struct winusb_device *wd;
+    struct ufunction *f;
+
+    wd = (struct winusb_device *)fd->data;
+    f = (struct ufunction *)wd->parent.user_data;
+
+    rt_poll_add(&wd->wq, req);
+
+    return mask;
+}
+
+static const struct dfs_file_ops _fops =
+{
+    _file_open,
+    _file_close,
+    _file_ioctl,
+    _file_read,
+    _file_write,
+    RT_NULL,
+    RT_NULL,
+    RT_NULL,
+    _file_poll
+};
+#endif
+
 static rt_err_t rt_usb_winusb_init(ufunction_t func)
 {
+    rt_err_t ret;
+
     winusb_device_t winusb_device   = (winusb_device_t)func->user_data;
     winusb_device->parent.type      = RT_Device_Class_Miscellaneous;
 
@@ -292,9 +389,12 @@ static rt_err_t rt_usb_winusb_init(ufunction_t func)
 #endif
 
     winusb_device->parent.user_data = func;
+    ret = rt_device_register(&winusb_device->parent, "winusb", RT_DEVICE_FLAG_RDWR);
+#ifdef RT_USING_POSIX
+    winusb_device->parent.fops = &_fops;
+#endif
 
-    
-    return rt_device_register(&winusb_device->parent, "winusb", RT_DEVICE_FLAG_RDWR);
+    return ret;
 }
 
 ufunction_t rt_usbd_function_winusb_create(udevice_t device)
