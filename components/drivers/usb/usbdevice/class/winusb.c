@@ -27,6 +27,8 @@ struct winusb_device
 #ifdef RT_USING_POSIX
     struct rt_wqueue wq;
     struct rt_wqueue rq;
+    rt_uint16_t rdcnt;
+    rt_uint16_t wrcnt;
 #endif
 };
 
@@ -151,6 +153,7 @@ static rt_err_t _ep_out_handler(ufunction_t func, rt_size_t size)
     }
 #ifdef RT_USING_POSIX
     rt_wqueue_wakeup(&(winusb_device->rq), (void*)POLLIN);
+    winusb_device->rdcnt ++;
 #endif
     return RT_EOK;
 }
@@ -212,7 +215,28 @@ static rt_err_t _interface_handler(ufunction_t func, ureq_t setup)
 }
 static rt_err_t _function_enable(ufunction_t func)
 {
+    struct winusb_device *wd;
+
     RT_ASSERT(func != RT_NULL);
+    wd = func->user_data;
+
+    wd->ep_out->buffer = rt_malloc(EP_MAXPACKET(wd->ep_out));
+    if (!wd->ep_out->buffer)
+        return -RT_ENOMEM;
+
+#ifdef RT_USING_POSIX
+    wd->rdcnt = 0;
+    wd->wrcnt = 0;
+    rt_wqueue_init(&wd->rq);
+    rt_wqueue_init(&wd->wq);
+#endif
+
+    wd->ep_out->request.buffer = wd->ep_out->buffer;
+    wd->ep_out->request.size = EP_MAXPACKET(wd->ep_out);
+
+    wd->ep_out->request.req_type = UIO_REQUEST_READ_BEST;
+    rt_usbd_io_request(func->device, wd->ep_out, &wd->ep_out->request);
+
     return RT_EOK;
 }
 static rt_err_t _function_disable(ufunction_t func)
@@ -309,6 +333,8 @@ static int _file_read(struct dfs_fd *fd, void *buf, size_t size)
 {
     struct winusb_device *wd;
     struct ufunction *f;
+    struct uio_request *req;
+    size_t rsize;
 
     wd = (struct winusb_device *)fd->data;
     f = (struct ufunction *)wd->parent.user_data;
@@ -316,13 +342,27 @@ static int _file_read(struct dfs_fd *fd, void *buf, size_t size)
     if (!f->enabled)
         return -1;
 
-    wd->ep_out->buffer = buf;
-    wd->ep_out->request.buffer = buf;
-    wd->ep_out->request.size = size;
-    wd->ep_out->request.req_type = UIO_REQUEST_READ_FULL;
-    rt_usbd_io_request(f->device, wd->ep_out, &wd->ep_out->request);
+    while (!wd->rdcnt)
+    {
+        if (fd->flags & O_NONBLOCK)
+			return -EAGAIN;
 
-    return 0;
+        rt_wqueue_wait(&wd->rq, 0, RT_WAITING_FOREVER);
+    }
+
+    req = &wd->ep_out.request;
+    rsize = req->size - req->remain_size;
+    if (rsize > size)
+        rsize = size;
+    rt_memcpy(buf, req->buffer, rsize);
+
+    req->buffer = wd->ep_out->buffer;
+    req->size = EP_MAXPACKET(wd->ep_out);
+    req->req_type = UIO_REQUEST_READ_BEST;
+
+    rt_usbd_io_request(f->device, wd->ep_out, req);
+
+    return rsize;
 }
 
 static int _file_write(struct dfs_fd *fd, const void *buf, size_t size)
