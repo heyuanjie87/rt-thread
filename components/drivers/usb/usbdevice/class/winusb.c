@@ -15,6 +15,7 @@
 #include "winusb.h"
 #ifdef RT_USING_POSIX
 #include <dfs_file.h>
+#include <dfs_poll.h>
 #endif
 
 struct winusb_device
@@ -216,12 +217,15 @@ static rt_err_t _interface_handler(ufunction_t func, ureq_t setup)
 static rt_err_t _function_enable(ufunction_t func)
 {
     struct winusb_device *wd;
+    int size;
+    rt_uint8_t *buf;
 
     RT_ASSERT(func != RT_NULL);
     wd = func->user_data;
 
-    wd->ep_out->buffer = rt_malloc(EP_MAXPACKET(wd->ep_out));
-    if (!wd->ep_out->buffer)
+    size = EP_MAXPACKET(wd->ep_out);
+    buf = rt_malloc(size);
+    if (!buf)
         return -RT_ENOMEM;
 
 #ifdef RT_USING_POSIX
@@ -231,9 +235,9 @@ static rt_err_t _function_enable(ufunction_t func)
     rt_wqueue_init(&wd->wq);
 #endif
 
-    wd->ep_out->request.buffer = wd->ep_out->buffer;
-    wd->ep_out->request.size = EP_MAXPACKET(wd->ep_out);
-
+    wd->ep_out->buffer = buf;
+    wd->ep_out->request.buffer = buf;
+    wd->ep_out->request.size = size;
     wd->ep_out->request.req_type = UIO_REQUEST_READ_BEST;
     rt_usbd_io_request(func->device, wd->ep_out, &wd->ep_out->request);
 
@@ -350,7 +354,7 @@ static int _file_read(struct dfs_fd *fd, void *buf, size_t size)
         rt_wqueue_wait(&wd->rq, 0, RT_WAITING_FOREVER);
     }
 
-    req = &wd->ep_out.request;
+    req = &wd->ep_out->request;
     rsize = req->size - req->remain_size;
     if (rsize > size)
         rsize = size;
