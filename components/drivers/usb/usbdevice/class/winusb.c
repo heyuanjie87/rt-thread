@@ -18,6 +18,10 @@
 #include <dfs_poll.h>
 #endif
 
+#ifndef WINUSB_PRODUCT_STRING
+#define WINUSB_PRODUCT_STRING "ADB Interface"
+#endif
+
 struct winusb_device
 {
     struct rt_device parent;
@@ -93,8 +97,8 @@ struct winusb_descriptor _winusb_desc =
         0x00,                       //bAlternateSetting;
         0x02,                       //bNumEndpoints
         0xFF,                       //bInterfaceClass;
-        0x00,                       //bInterfaceSubClass;
-        0x00,                       //bInterfaceProtocol;
+        0x42,                       //bInterfaceSubClass;
+        0x01,                       //bInterfaceProtocol;
         0x00,                       //iInterface;
     },
     /*endpoint descriptor*/
@@ -122,7 +126,7 @@ const static char* _ustring[] =
 {
     "Language",
     "RT-Thread Team.",
-    "RTT Win USB",
+    WINUSB_PRODUCT_STRING,
     "32021919830108",
     "Configuration",
     "Interface",
@@ -214,19 +218,29 @@ static rt_err_t _interface_handler(ufunction_t func, ureq_t setup)
     
     return RT_EOK;
 }
+
+static int _ep_alloc_request(uep_t ep)
+{
+    int size;
+
+    size = EP_MAXPACKET(ep);
+    ep->buffer = rt_malloc(size);
+    if (!ep->buffer)
+        return -1;
+
+    ep->request.buffer = ep->buffer;
+    ep->request.size = size;
+    ep->request.req_type = UIO_REQUEST_READ_BEST;
+
+    return 0;
+}
+
 static rt_err_t _function_enable(ufunction_t func)
 {
     struct winusb_device *wd;
-    int size;
-    rt_uint8_t *buf;
 
     RT_ASSERT(func != RT_NULL);
     wd = func->user_data;
-
-    size = EP_MAXPACKET(wd->ep_out);
-    buf = rt_malloc(size);
-    if (!buf)
-        return -RT_ENOMEM;
 
 #ifdef RT_USING_POSIX
     wd->rdcnt = 0;
@@ -235,10 +249,9 @@ static rt_err_t _function_enable(ufunction_t func)
     rt_wqueue_init(&wd->wq);
 #endif
 
-    wd->ep_out->buffer = buf;
-    wd->ep_out->request.buffer = buf;
-    wd->ep_out->request.size = size;
-    wd->ep_out->request.req_type = UIO_REQUEST_READ_BEST;
+    _ep_alloc_request(wd->ep_out);
+    _ep_alloc_request(wd->ep_in);
+
     rt_usbd_io_request(func->device, wd->ep_out, &wd->ep_out->request);
 
     return RT_EOK;
