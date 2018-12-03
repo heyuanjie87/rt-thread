@@ -18,8 +18,14 @@
 #include <dfs_poll.h>
 #endif
 
+#ifndef WINUSB_MANUFAC_STRING
+#define WINUSB_MANUFAC_STRING "Android"
+#endif
 #ifndef WINUSB_PRODUCT_STRING
-#define WINUSB_PRODUCT_STRING "ADB Interface"
+#define WINUSB_PRODUCT_STRING "Android"
+#endif
+#ifndef WINUSB_INTERF_STRING
+#define WINUSB_INTERF_STRING "ADB Interface"
 #endif
 
 struct winusb_device
@@ -65,7 +71,7 @@ static struct usb_qualifier_descriptor dev_qualifier =
     sizeof(dev_qualifier),          //bLength
     USB_DESC_TYPE_DEVICEQUALIFIER,  //bDescriptorType
     0x0200,                         //bcdUSB
-    0xFF,                           //bDeviceClass
+    0x00,                           //bDeviceClass
     0x00,                           //bDeviceSubClass
     0x00,                           //bDeviceProtocol
     64,                             //bMaxPacketSize0
@@ -99,7 +105,7 @@ struct winusb_descriptor _winusb_desc =
         0xFF,                       //bInterfaceClass;
         0x42,                       //bInterfaceSubClass;
         0x01,                       //bInterfaceProtocol;
-        0x00,                       //iInterface;
+        0x05,                       //iInterface;
     },
     /*endpoint descriptor*/
     {
@@ -125,11 +131,11 @@ ALIGN(4)
 const static char* _ustring[] =
 {
     "Language",
-    "RT-Thread Team.",
+    WINUSB_MANUFAC_STRING,
     WINUSB_PRODUCT_STRING,
-    "32021919830108",
+    "4985d80e9904",
     "Configuration",
-    "Interface",
+    WINUSB_INTERF_STRING,
     USB_STRING_OS//must be
 };
 
@@ -170,6 +176,7 @@ static rt_err_t _ep_in_handler(ufunction_t func, rt_size_t size)
     {
         winusb_device->parent.tx_complete(&winusb_device->parent, winusb_device->ep_in->buffer);
     }
+		rt_kprintf("in %d\n", size);
 #ifdef RT_USING_POSIX
     rt_wqueue_wakeup(&(winusb_device->wq), (void*)POLLOUT);
 #endif
