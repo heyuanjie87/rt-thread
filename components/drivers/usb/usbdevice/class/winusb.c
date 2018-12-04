@@ -31,7 +31,7 @@
 struct winusb_device
 {
     struct rt_device parent;
-    void (*cmd_handler)(rt_uint8_t *buffer,rt_size_t size);
+    void (*cmd_handler)(rt_uint8_t *buffer, rt_size_t size);
     rt_uint8_t cmd_buff[256];
     uep_t ep_out;
     uep_t ep_in;
@@ -40,6 +40,7 @@ struct winusb_device
     struct rt_wqueue rq;
     rt_uint16_t rdcnt;
     rt_uint16_t wrcnt;
+    struct rt_ringbuffer *rrb;
 #endif
 };
 
@@ -157,16 +158,23 @@ struct usb_os_function_comp_id_descriptor winusb_func_comp_id_desc =
 
 static rt_err_t _ep_out_handler(ufunction_t func, rt_size_t size)
 {
-    winusb_device_t winusb_device = (winusb_device_t)func->user_data;
+    winusb_device_t wd = (winusb_device_t)func->user_data;
+    int space;
 
-    if(winusb_device->parent.rx_indicate != RT_NULL)
+    if(wd->parent.rx_indicate != RT_NULL)
     {
-        winusb_device->parent.rx_indicate(&winusb_device->parent, size);
+        wd->parent.rx_indicate(&wd->parent, size);
     }
 
 #ifdef RT_USING_POSIX
-    rt_wqueue_wakeup(&(winusb_device->rq), (void*)POLLIN);
-    winusb_device->rdcnt = size;
+    space = rt_ringbuffer_space_len(wd->rrb);
+    if (size <= space)
+    {
+        rt_ringbuffer_put(wd->rrb, wd->ep_out->buffer, size);
+    }
+    else
+        wd->rdcnt = size;
+    rt_wqueue_wakeup(&(wd->rq), (void*)POLLIN);
 #endif
 
     return RT_EOK;
@@ -351,7 +359,7 @@ const static struct rt_device_ops winusb_device_ops =
 };
 #endif
 
-#if 1//def RT_USING_POSIX
+#ifdef RT_USING_POSIX
 static int _file_open(struct dfs_fd *fd)
 {
     return 0;
@@ -378,22 +386,33 @@ static int _file_read(struct dfs_fd *fd, void *buf, size_t size)
     f = (struct ufunction *)wd->parent.user_data;
 
     if (!f->enabled)
-        return -1;
+        return -EAGAIN;
 
-    while (!wd->rdcnt)
+    while (!wd->rdcnt && !rt_ringbuffer_data_len(wd->rrb))
     {
         if (fd->flags & O_NONBLOCK)
-			return -EAGAIN;
+            return -EAGAIN;
 
         rt_wqueue_wait(&wd->rq, 0, RT_WAITING_FOREVER);
+        if (!f->enabled)
+            return -EAGAIN;
     }
 
     req = &wd->ep_out->request;
-    rsize = wd->rdcnt;
-    if (rsize > size)
-        rsize = size;
-    rt_memcpy(buf, wd->ep_out->buffer, rsize);
-    wd->rdcnt -= rsize;
+    if (wd->rdcnt)
+    {
+        rsize = wd->rdcnt > size? size : wd->rdcnt;
+        rt_memcpy(buf, wd->ep_out->buffer, rsize);
+        wd->rdcnt -= rsize;
+    }
+    else
+    {
+        rsize = rt_ringbuffer_data_len(wd->rrb);
+        if (rsize > size)
+            rsize = size;
+        rt_ringbuffer_get(wd->rrb, buf, rsize);
+    }
+
     if (wd->rdcnt == 0)
     {
         req->buffer = wd->ep_out->buffer;
@@ -417,7 +436,7 @@ static int _file_write(struct dfs_fd *fd, const void *buf, size_t size)
     f = (struct ufunction *)wd->parent.user_data;
 
     if (!f->enabled)
-        return -1;
+        return -EAGAIN;
 
     while (wd->wrcnt)
     {
@@ -425,6 +444,8 @@ static int _file_write(struct dfs_fd *fd, const void *buf, size_t size)
             return -EAGAIN;
 
         rt_wqueue_wait(&wd->wq, 0, RT_WAITING_FOREVER);
+        if (!f->enabled)
+            return -EAGAIN;
     }
 
     req = &wd->ep_in->request;
@@ -452,16 +473,15 @@ static int _file_poll(struct dfs_fd *fd, struct rt_pollreq *req)
 
     if (!f->enabled)
         return POLLHUP;
-    if (wd->rdcnt)
+    if (wd->rdcnt || rt_ringbuffer_data_len(wd->rrb))
         mask |= POLLIN;
+		else
+        rt_poll_add(&wd->rq, req);
+
     if (!wd->wrcnt)
         mask |= POLLOUT;
-
-    if (mask == 0)
-    {
+    else
         rt_poll_add(&wd->wq, req);
-        rt_poll_add(&wd->rq, req);
-    }
 
     return mask;
 }
@@ -502,6 +522,9 @@ static rt_err_t rt_usb_winusb_init(ufunction_t func)
     ret = rt_device_register(&winusb_device->parent, "winusb", RT_DEVICE_FLAG_RDWR);
 #ifdef RT_USING_POSIX
     winusb_device->parent.fops = &_fops;
+    rt_wqueue_init(&winusb_device->rq);
+    rt_wqueue_init(&winusb_device->wq);
+    winusb_device->rrb = rt_ringbuffer_create(512);
 #endif
 
     return ret;
