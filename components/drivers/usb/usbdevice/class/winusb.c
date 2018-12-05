@@ -166,6 +166,7 @@ struct usb_os_function_comp_id_descriptor winusb_func_comp_id_desc =
     .reserved2          = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
 };
 
+#ifdef RT_USING_POSIX
 static int _readreq(ufunction_t func, struct winusb_device *wd)
 {
     struct uio_request *req;
@@ -178,6 +179,7 @@ static int _readreq(ufunction_t func, struct winusb_device *wd)
 
     return rt_usbd_io_request(func->device, wd->ep_out, req);
 }
+#endif
 
 static rt_err_t _ep_out_handler(ufunction_t func, rt_size_t size)
 {
@@ -194,14 +196,14 @@ static rt_err_t _ep_out_handler(ufunction_t func, rt_size_t size)
     if (size <= space)
     {
         rt_ringbuffer_put(wd->rrb, wd->ep_out->buffer, size);
+        size = 0;
     }
     else
-        wd->rdcnt = size;
+        wd->rdcnt = size; /* let data pending in ep_out->buffer */
     rt_wqueue_wakeup(&(wd->rq), (void *)POLLIN);
-#endif
-
     if (size == 0)
-        _readreq(func, wd);
+        _readreq(func, wd);    
+#endif
 
     return RT_EOK;
 }
@@ -267,6 +269,7 @@ static rt_err_t _interface_handler(ufunction_t func, ureq_t setup)
     return RT_EOK;
 }
 
+#ifdef RT_USING_POSIX
 static int _ep_alloc_request(uep_t ep)
 {
     int size;
@@ -282,6 +285,7 @@ static int _ep_alloc_request(uep_t ep)
 
     return 0;
 }
+#endif
 
 static rt_err_t _function_enable(ufunction_t func)
 {
@@ -293,7 +297,6 @@ static rt_err_t _function_enable(ufunction_t func)
 #ifdef RT_USING_POSIX
     wd->rdcnt = 0;
     wd->wrcnt = 0;
-#endif
 
     if (_ep_alloc_request(wd->ep_out) != 0)
         return -1;
@@ -302,8 +305,8 @@ static rt_err_t _function_enable(ufunction_t func)
         rt_free(wd->ep_out->buffer);
         return -1;
     }
-
     _readreq(func, wd);
+#endif
 
     return RT_EOK;
 }
@@ -329,10 +332,10 @@ static rt_err_t _function_disable(ufunction_t func)
 }
 
 static struct ufunction_ops ops =
-    {
-        _function_enable,
-        _function_disable,
-        RT_NULL,
+{
+    _function_enable,
+    _function_disable,
+    RT_NULL,
 };
 
 static rt_err_t _winusb_descriptor_config(winusb_desc_t winusb, rt_uint8_t cintf_nr, rt_uint8_t device_is_hs)
