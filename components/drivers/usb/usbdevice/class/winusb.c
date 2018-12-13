@@ -6,17 +6,18 @@
  * Change Logs:
  * Date           Author       Notes
  * 2017-11-16     ZYH          first version
+ * 2018-12-13     heyuanjie87  add file operations
  */
+
 #include <rthw.h>
 #include <rtthread.h>
 #include <rtservice.h>
 #include <rtdevice.h>
 #include <drivers/usb_device.h>
 #include "winusb.h"
-#ifdef RT_USING_POSIX
+/* need macro RT_USING_POSIX */
 #include <dfs_file.h>
 #include <dfs_poll.h>
-#endif
 
 /* default for ADB */
 #ifndef WINUSB_MANUFAC_STRING
@@ -27,6 +28,9 @@
 #endif
 #ifndef WINUSB_INTERF_STRING
 #define WINUSB_INTERF_STRING "ADB Interface"
+#endif
+#ifndef WINUSB_COMPATID_STRING
+#define WINUSB_COMPATID_STRING "ADB"
 #endif
 #ifndef WINUSB_BCDDEVICE
 #define WINUSB_BCDDEVICE 0x0318
@@ -45,13 +49,12 @@ struct winusb_device
     rt_uint8_t cmd_buff[256];
     uep_t ep_out;
     uep_t ep_in;
-#ifdef RT_USING_POSIX
+
     struct rt_wqueue wq;
     struct rt_wqueue rq;
     rt_uint16_t rdcnt;
     rt_uint16_t wrcnt;
     struct rt_ringbuffer *rrb;
-#endif
 };
 
 typedef struct winusb_device * winusb_device_t;
@@ -151,22 +154,21 @@ const static char* _ustring[] =
 };
 
 ALIGN(4)
-struct usb_os_proerty winusb_proerty[] = 
+static struct usb_os_proerty winusb_proerty[] = 
 {
     USB_OS_PROERTY_DESC(USB_OS_PROERTY_TYPE_REG_SZ,"DeviceInterfaceGUID",RT_WINUSB_GUID),
 };
 
 ALIGN(4)
-struct usb_os_function_comp_id_descriptor winusb_func_comp_id_desc = 
+static struct usb_os_function_comp_id_descriptor winusb_func_comp_id_desc = 
 {
     .bFirstInterfaceNumber = USB_DYNAMIC,
     .reserved1          = 0x01,
-    .compatibleID       = {'W', 'I', 'N', 'U', 'S', 'B', 0x00, 0x00},
+    .compatibleID       = {WINUSB_COMPATID_STRING},
     .subCompatibleID    = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
     .reserved2          = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
 };
 
-#ifdef RT_USING_POSIX
 static int _readreq(ufunction_t func, struct winusb_device *wd)
 {
     struct uio_request *req;
@@ -179,19 +181,12 @@ static int _readreq(ufunction_t func, struct winusb_device *wd)
 
     return rt_usbd_io_request(func->device, wd->ep_out, req);
 }
-#endif
 
 static rt_err_t _ep_out_handler(ufunction_t func, rt_size_t size)
 {
     winusb_device_t wd = (winusb_device_t)func->user_data;
     int space;
 
-    if (wd->parent.rx_indicate != RT_NULL)
-    {
-        wd->parent.rx_indicate(&wd->parent, size);
-    }
-
-#ifdef RT_USING_POSIX
     space = rt_ringbuffer_space_len(wd->rrb);
     if (size <= space)
     {
@@ -202,25 +197,17 @@ static rt_err_t _ep_out_handler(ufunction_t func, rt_size_t size)
         wd->rdcnt = size; /* let data pending in ep_out->buffer */
     rt_wqueue_wakeup(&(wd->rq), (void *)POLLIN);
     if (size == 0)
-        _readreq(func, wd);    
-#endif
+        _readreq(func, wd);
 
     return RT_EOK;
 }
 
 static rt_err_t _ep_in_handler(ufunction_t func, rt_size_t size)
 {
-    winusb_device_t winusb_device = (winusb_device_t)func->user_data;
+    winusb_device_t wd = (winusb_device_t)func->user_data;
 
-    if (winusb_device->parent.tx_complete != RT_NULL)
-    {
-        winusb_device->parent.tx_complete(&winusb_device->parent, winusb_device->ep_in->buffer);
-    }
-
-#ifdef RT_USING_POSIX
-    winusb_device->wrcnt -= size;
-    rt_wqueue_wakeup(&(winusb_device->wq), (void *)POLLOUT);
-#endif
+    wd->wrcnt -= size;
+    rt_wqueue_wakeup(&(wd->wq), (void *)POLLOUT);
 
     return RT_EOK;
 }
@@ -242,6 +229,7 @@ static rt_err_t _ep0_cmd_handler(udevice_t device, rt_size_t size)
     dcd_ep0_send_status(device->dcd);
     return RT_EOK;
 }
+
 static rt_err_t _ep0_cmd_read(ufunction_t func, ureq_t setup)
 {
     winusb_device_t winusb_device = (winusb_device_t)func->user_data;
@@ -249,6 +237,7 @@ static rt_err_t _ep0_cmd_read(ufunction_t func, ureq_t setup)
     rt_usbd_ep0_read(func->device, winusb_device->cmd_buff, setup->wLength, _ep0_cmd_handler);
     return RT_EOK;
 }
+
 static rt_err_t _interface_handler(ufunction_t func, ureq_t setup)
 {
     switch (setup->bRequest)
@@ -294,7 +283,6 @@ static rt_err_t _function_enable(ufunction_t func)
     RT_ASSERT(func != RT_NULL);
     wd = func->user_data;
 
-#ifdef RT_USING_POSIX
     wd->rdcnt = 0;
     wd->wrcnt = 0;
 
@@ -306,7 +294,6 @@ static rt_err_t _function_enable(ufunction_t func)
         return -1;
     }
     _readreq(func, wd);
-#endif
 
     return RT_EOK;
 }
@@ -323,10 +310,8 @@ static rt_err_t _function_disable(ufunction_t func)
     wd->ep_out->buffer = 0;
     wd->ep_in->buffer = 0;
 
-#ifdef RT_USING_POSIX
     rt_wqueue_wakeup(&(wd->rq), (void *)POLLHUP);
     rt_wqueue_wakeup(&(wd->wq), (void *)POLLHUP);
-#endif
 
     return RT_EOK;
 }
@@ -349,57 +334,7 @@ static rt_err_t _winusb_descriptor_config(winusb_desc_t winusb, rt_uint8_t cintf
     return RT_EOK;
 }
 
-static rt_size_t win_usb_read(rt_device_t dev, rt_off_t pos, void *buffer, rt_size_t size)
-{
-    if (((ufunction_t)dev->user_data)->device->state != USB_STATE_CONFIGURED)
-    {
-        return 0;
-    }
-    winusb_device_t winusb_device = (winusb_device_t)dev;
-    winusb_device->ep_out->buffer = buffer;
-    winusb_device->ep_out->request.buffer = buffer;
-    winusb_device->ep_out->request.size = size;
-    winusb_device->ep_out->request.req_type = UIO_REQUEST_READ_FULL;
-    rt_usbd_io_request(((ufunction_t)dev->user_data)->device, winusb_device->ep_out, &winusb_device->ep_out->request);
-    return size;
-}
-static rt_size_t win_usb_write(rt_device_t dev, rt_off_t pos, const void *buffer, rt_size_t size)
-{
-    if (((ufunction_t)dev->user_data)->device->state != USB_STATE_CONFIGURED)
-    {
-        return 0;
-    }
-    winusb_device_t winusb_device = (winusb_device_t)dev;
-    winusb_device->ep_in->buffer = (void *)buffer;
-    winusb_device->ep_in->request.buffer = winusb_device->ep_in->buffer;
-    winusb_device->ep_in->request.size = size;
-    winusb_device->ep_in->request.req_type = UIO_REQUEST_WRITE;
-    rt_usbd_io_request(((ufunction_t)dev->user_data)->device, winusb_device->ep_in, &winusb_device->ep_in->request);
-    return size;
-}
-static rt_err_t win_usb_control(rt_device_t dev, int cmd, void *args)
-{
-    winusb_device_t winusb_device = (winusb_device_t)dev;
-    if (RT_DEVICE_CTRL_CONFIG == cmd)
-    {
-        winusb_device->cmd_handler = (void (*)(rt_uint8_t *, rt_size_t))args;
-    }
-    return RT_EOK;
-}
-
-#ifdef RT_USING_DEVICE_OPS
-const static struct rt_device_ops winusb_device_ops =
-{
-    RT_NULL,
-    RT_NULL,
-    RT_NULL,
-    win_usb_read,
-    win_usb_write,
-    win_usb_control,
-};
-#endif
-
-#ifdef RT_USING_POSIX
+/* file operations */
 static int _file_open(struct dfs_fd *fd)
 {
     return 0;
@@ -520,17 +455,17 @@ static int _file_poll(struct dfs_fd *fd, struct rt_pollreq *req)
 }
 
 static const struct dfs_file_ops _fops =
-    {
-        _file_open,
-        _file_close,
-        _file_ioctl,
-        _file_read,
-        _file_write,
-        RT_NULL,
-        RT_NULL,
-        RT_NULL,
-        _file_poll};
-#endif
+{
+    _file_open,
+    _file_close,
+    _file_ioctl,
+    _file_read,
+    _file_write,
+    RT_NULL,
+    RT_NULL,
+    RT_NULL,
+    _file_poll
+};
 
 static rt_err_t rt_usb_winusb_init(ufunction_t func)
 {
@@ -539,25 +474,13 @@ static rt_err_t rt_usb_winusb_init(ufunction_t func)
     winusb_device_t winusb_device = (winusb_device_t)func->user_data;
     winusb_device->parent.type = RT_Device_Class_Miscellaneous;
 
-#ifdef RT_USING_DEVICE_OPS
-    winusb_device->parent.ops = &winusb_device_ops;
-#else
-    winusb_device->parent.init = RT_NULL;
-    winusb_device->parent.open = RT_NULL;
-    winusb_device->parent.close = RT_NULL;
-    winusb_device->parent.read = win_usb_read;
-    winusb_device->parent.write = win_usb_write;
-    winusb_device->parent.control = win_usb_control;
-#endif
-
     winusb_device->parent.user_data = func;
     ret = rt_device_register(&winusb_device->parent, "winusb", RT_DEVICE_FLAG_RDWR);
-#ifdef RT_USING_POSIX
+
     winusb_device->parent.fops = &_fops;
     rt_wqueue_init(&winusb_device->rq);
     rt_wqueue_init(&winusb_device->wq);
     winusb_device->rrb = rt_ringbuffer_create(512);
-#endif
 
     return ret;
 }
@@ -620,8 +543,9 @@ ufunction_t rt_usbd_function_winusb_create(udevice_t device)
 }
 
 struct udclass winusb_class =
-    {
-        .rt_usbd_function_create = rt_usbd_function_winusb_create};
+{
+    .rt_usbd_function_create = rt_usbd_function_winusb_create
+};
 
 int rt_usbd_winusb_class_register(void)
 {
