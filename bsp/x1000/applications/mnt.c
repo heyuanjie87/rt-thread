@@ -55,7 +55,7 @@ int mnt_init(void)
 
 #if (defined(RT_USING_SDIO) && defined(RT_USING_MSC0))
     rt_thread_delay(RT_TICK_PER_SECOND/5);
-    if (dfs_mount("sd0", "/sd", "elm", 0, 0) == 0)
+    if (dfs_mount("sd0", "/sd0", "elm", 0, 0) == 0)
     {
         rt_kprintf("File System on TF initialized!\n");
     }
