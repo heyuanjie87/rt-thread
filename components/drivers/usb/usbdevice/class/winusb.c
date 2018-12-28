@@ -185,18 +185,25 @@ static int _readreq(ufunction_t func, struct winusb_device *wd)
 static rt_err_t _ep_out_handler(ufunction_t func, rt_size_t size)
 {
     winusb_device_t wd = (winusb_device_t)func->user_data;
-    int space;
+    int req = 1;
 
-    space = rt_ringbuffer_space_len(wd->rrb);
-    if (size <= space)
+    /* size is invalid */
+    if (size == 0 || size > EP_MAXPACKET(wd->ep_out))
+        goto _reqrd;
+
+    if (size <= rt_ringbuffer_space_len(wd->rrb))
     {
         rt_ringbuffer_put(wd->rrb, wd->ep_out->buffer, size);
-        size = 0;
     }
     else
+    {
         wd->rdcnt = size; /* let data pending in ep_out->buffer */
+        req = 0;
+    }
+
     rt_wqueue_wakeup(&(wd->rq), (void *)POLLIN);
-    if (size == 0)
+_reqrd:
+    if (req)
         _readreq(func, wd);
 
     return RT_EOK;
@@ -361,6 +368,8 @@ static int _file_read(struct dfs_fd *fd, void *buf, size_t size)
 
     if (!f->enabled)
         return -ENODEV;
+    if (size == 0)
+        return 0;
 
     while (!wd->rdcnt && !rt_ringbuffer_data_len(wd->rrb))
     {
@@ -372,23 +381,22 @@ static int _file_read(struct dfs_fd *fd, void *buf, size_t size)
             return -ENODEV;
     }
 
-    if (wd->rdcnt)
+    rsize = rt_ringbuffer_data_len(wd->rrb);
+    if (rsize > size)
+        rsize = size;
+    if (rsize)
+    {
+        rt_ringbuffer_get(wd->rrb, buf, rsize);
+    }
+    else if (wd->rdcnt)
     {
         rsize = wd->rdcnt > size ? size : wd->rdcnt;
         rt_memcpy(buf, wd->ep_out->buffer, rsize);
         wd->rdcnt -= rsize;
-    }
-    else
-    {
-        rsize = rt_ringbuffer_data_len(wd->rrb);
-        if (rsize > size)
-            rsize = size;
-        rt_ringbuffer_get(wd->rrb, buf, rsize);
-    }
-
-    if (wd->rdcnt == 0)
-    {
-        _readreq(f, wd);
+        if (wd->rdcnt == 0)
+        {
+            _readreq(f, wd);
+        }
     }
 
     return rsize;
