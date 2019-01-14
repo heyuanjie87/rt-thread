@@ -46,6 +46,7 @@ struct dfs_filesystem_ops
 /* Mounted file system */
 struct dfs_filesystem
 {
+    rt_list_t list;
     rt_device_t dev_id;     /* Attached device */
 
     char *path;             /* File system mount point */
@@ -75,7 +76,6 @@ struct dfs_mount_tbl
 
 int dfs_register(const struct dfs_filesystem_ops *ops);
 struct dfs_filesystem *dfs_filesystem_lookup(const char *path);
-const char* dfs_filesystem_get_mounted_path(struct rt_device* device);
 
 int dfs_filesystem_get_partition(struct dfs_partition *part,
                                       uint8_t         *buf,
@@ -90,6 +90,10 @@ int dfs_unmount(const char *specialfile);
 
 int dfs_mkfs(const char *fs_name, const char *device_name);
 int dfs_statfs(const char *path, struct statfs *buffer);
+
+int dfs_pseudo_mount(const char *path, 
+                     const struct dfs_filesystem_ops *fsops,
+                     const void *data);
 
 #ifdef __cplusplus
 }

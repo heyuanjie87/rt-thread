@@ -506,7 +506,7 @@ void rt_mmcsd_blk_remove(struct rt_mmcsd_card *card)
         if (blk_dev->card == card) 
         {
         	/* unmount file system */
-        	const char * mounted_path = dfs_filesystem_get_mounted_path(&(blk_dev->dev));
+        	const char * mounted_path = 0;//todo dfs_filesystem_get_mounted_path(&(blk_dev->dev));
         	if (mounted_path)
         	{
         		dfs_unmount(mounted_path);

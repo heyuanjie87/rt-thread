@@ -32,36 +32,16 @@
 int dfs_file_open(struct dfs_fd *fd, const char *path, int flags)
 {
     struct dfs_filesystem *fs;
-    char *fullpath;
     int result;
 
     /* parameter check */
     if (fd == NULL)
         return -EINVAL;
 
-    /* make sure we have an absolute path */
-    fullpath = dfs_normalize_path(NULL, path);
-    if (fullpath == NULL)
-    {
-        return -ENOMEM;
-    }
-
-    LOG_D("open file:%s", fullpath);
-
-    /* Check whether file is already open */
-    if (fd_is_open(fullpath) == 0)
-    {
-        rt_free(fullpath); /* release path */
-
-        return -EBUSY;
-    }
-
     /* find filesystem */
-    fs = dfs_filesystem_lookup(fullpath);
+    fs = dfs_filesystem_lookup(path);
     if (fs == NULL)
     {
-        rt_free(fullpath); /* release path */
-
         return -ENOENT;
     }
 
@@ -75,37 +55,16 @@ int dfs_file_open(struct dfs_fd *fd, const char *path, int flags)
     fd->size  = 0;
     fd->pos   = 0;
     fd->data  = fs;
-
-    if (!(fs->ops->flags & DFS_FS_FLAG_FULLPATH))
-    {
-        if (dfs_subdir(fs->path, fullpath) == NULL)
-            fd->path = rt_strdup("/");
-        else
-            fd->path = rt_strdup(dfs_subdir(fs->path, fullpath));
-        rt_free(fullpath);
-        LOG_D("Actual file path: %s", fd->path);
-    }
-    else
-    {
-        fd->path = fullpath;
-    }
+    fd->path = (char*)path;
 
     /* specific file system open routine */
     if (fd->fops->open == NULL)
     {
-        /* clear fd */
-        rt_free(fd->path);
-        fd->path = NULL;
-
         return -ENOSYS;
     }
 
     if ((result = fd->fops->open(fd)) < 0)
     {
-        /* clear fd */
-        rt_free(fd->path);
-        fd->path = NULL;
-
         LOG_E("open failed");
 
         return result;

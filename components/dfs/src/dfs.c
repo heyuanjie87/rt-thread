@@ -24,7 +24,6 @@
 
 /* Global variables */
 const struct dfs_filesystem_ops *filesystem_operation_table[DFS_FILESYSTEM_TYPES_MAX];
-struct dfs_filesystem filesystem_table[DFS_FILESYSTEMS_MAX];
 
 /* device filesystem lock */
 static struct rt_mutex fslock;
@@ -57,8 +56,6 @@ int dfs_init(void)
 
     /* clear filesystem operations table */
     memset((void *)filesystem_operation_table, 0, sizeof(filesystem_operation_table));
-    /* clear filesystem table */
-    memset(filesystem_table, 0, sizeof(filesystem_table));
     /* clean fd table */
     memset(&_fdtab, 0, sizeof(_fdtab));
 
@@ -69,17 +66,6 @@ int dfs_init(void)
     /* set current working directory */
     memset(working_directory, 0, sizeof(working_directory));
     working_directory[0] = '/';
-#endif
-
-#ifdef RT_USING_DFS_DEVFS
-    {
-        extern int devfs_init(void);
-
-        /* if enable devfs, initialize and mount it as soon as possible */
-        devfs_init();
-
-        dfs_mount(NULL, "/dev", "devfs", 0, 0);
-    }
 #endif
 
     init_ok = RT_TRUE;

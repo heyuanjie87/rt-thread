@@ -168,7 +168,8 @@ int dfs_device_fs_open(struct dfs_fd *file)
         
         return RT_EOK;
     }
-
+    
+    file->path += 4;
     device = rt_device_find(&file->path[1]);
     if (device == RT_NULL)
         return -ENODEV;
@@ -324,8 +325,14 @@ static const struct dfs_filesystem_ops _device_fs =
 
 int devfs_init(void)
 {
-    /* register rom file system */
-    dfs_register(&_device_fs);
+    int ret;
 
-    return 0;
+    ret = dfs_register(&_device_fs);
+    if (ret == 0)
+    {
+        ret = dfs_pseudo_mount(":dev", &_device_fs, 0);
+    }
+
+    return ret;
 }
+INIT_COMPONENT_EXPORT(devfs_init);
