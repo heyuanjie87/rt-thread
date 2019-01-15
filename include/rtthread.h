@@ -60,6 +60,9 @@ void rt_object_take_sethook(void (*hook)(struct rt_object *object));
 void rt_object_put_sethook(void (*hook)(struct rt_object *object));
 #endif
 
+void rt_object_info_ref(struct rt_object_information *info);
+void rt_object_info_unref(struct rt_object_information *info);
+
 /**@}*/
 
 /**

@@ -23,27 +23,6 @@
 extern char working_directory[];
 #endif
 
-int cmd_ls(int argc, char **argv)
-{
-    extern void ls(const char *pathname);
-
-    if (argc == 1)
-    {
-#ifdef DFS_USING_WORKDIR
-        ls(working_directory);
-#else
-        ls("/");
-#endif
-    }
-    else
-    {
-        ls(argv[1]);
-    }
-
-    return 0;
-}
-FINSH_FUNCTION_EXPORT_ALIAS(cmd_ls, __cmd_ls, List information about the FILEs.);
-
 int cmd_cp(int argc, char **argv)
 {
     void copy(const char *src, const char *dst);
@@ -121,47 +100,6 @@ int cmd_mv(int argc, char **argv)
 }
 FINSH_FUNCTION_EXPORT_ALIAS(cmd_mv, __cmd_mv, Rename SOURCE to DEST.);
 
-int cmd_cat(int argc, char **argv)
-{
-    int index;
-    extern void cat(const char *filename);
-
-    if (argc == 1)
-    {
-        rt_kprintf("Usage: cat [FILE]...\n");
-        rt_kprintf("Concatenate FILE(s)\n");
-        return 0;
-    }
-
-    for (index = 1; index < argc; index ++)
-    {
-        cat(argv[index]);
-    }
-
-    return 0;
-}
-FINSH_FUNCTION_EXPORT_ALIAS(cmd_cat, __cmd_cat, Concatenate FILE(s));
-
-int cmd_rm(int argc, char **argv)
-{
-    int index;
-
-    if (argc == 1)
-    {
-        rt_kprintf("Usage: rm FILE...\n");
-        rt_kprintf("Remove (unlink) the FILE(s).\n");
-        return 0;
-    }
-
-    for (index = 1; index < argc; index ++)
-    {
-        unlink(argv[index]);
-    }
-
-    return 0;
-}
-FINSH_FUNCTION_EXPORT_ALIAS(cmd_rm, __cmd_rm, Remove(unlink) the FILE(s).);
-
 #ifdef DFS_USING_WORKDIR
 int cmd_cd(int argc, char **argv)
 {
@@ -189,53 +127,6 @@ int cmd_pwd(int argc, char **argv)
 FINSH_FUNCTION_EXPORT_ALIAS(cmd_pwd, __cmd_pwd, Print the name of the current working directory.);
 #endif
 
-int cmd_mkdir(int argc, char **argv)
-{
-    if (argc == 1)
-    {
-        rt_kprintf("Usage: mkdir [OPTION] DIRECTORY\n");
-        rt_kprintf("Create the DIRECTORY, if they do not already exist.\n");
-    }
-    else
-    {
-        mkdir(argv[1], 0);
-    }
-
-    return 0;
-}
-FINSH_FUNCTION_EXPORT_ALIAS(cmd_mkdir, __cmd_mkdir, Create the DIRECTORY.);
-
-int cmd_mkfs(int argc, char **argv)
-{
-    int result = 0;
-    char *type = "elm"; /* use the default file system type as 'fatfs' */
-
-    if (argc == 2)
-    {
-        result = dfs_mkfs(type, argv[1]);
-    }
-    else if (argc == 4)
-    {
-        if (strcmp(argv[1], "-t") == 0)
-        {
-            type = argv[2];
-            result = dfs_mkfs(type, argv[3]);
-        }
-    }
-    else
-    {
-        rt_kprintf("Usage: mkfs [-t type] device\n");
-        return 0;
-    }
-
-    if (result != RT_EOK)
-    {
-        rt_kprintf("mkfs failed, result=%d\n", result);
-    }
-
-    return 0;
-}
-FINSH_FUNCTION_EXPORT_ALIAS(cmd_mkfs, __cmd_mkfs, format disk with file system);
 
 extern int df(const char *path);
 int cmd_df(int argc, char** argv)
@@ -260,35 +151,6 @@ int cmd_df(int argc, char** argv)
 }
 FINSH_FUNCTION_EXPORT_ALIAS(cmd_df, __cmd_df, disk free);
 
-int cmd_echo(int argc, char** argv)
-{
-    if (argc == 2)
-    {
-        rt_kprintf("%s\n", argv[1]);
-    }
-    else if (argc == 3)
-    {
-        int fd;
-
-        fd = open(argv[2], O_RDWR | O_APPEND | O_CREAT, 0);
-        if (fd >= 0)
-        {
-            write (fd, argv[1], strlen(argv[1]));
-            close(fd);
-        }
-        else
-        {
-            rt_kprintf("open file:%s failed!\n", argv[2]);
-        }
-    }
-    else
-    {
-        rt_kprintf("Usage: echo \"string\" [filename]\n");
-    }
-
-    return 0;
-}
-FINSH_FUNCTION_EXPORT_ALIAS(cmd_echo, __cmd_echo, echo string to file);
 #endif
 
 #ifdef RT_USING_LWIP
@@ -382,26 +244,6 @@ FINSH_FUNCTION_EXPORT_ALIAS(cmd_netstat, __cmd_netstat, list the information of 
 #endif
 #endif /* RT_USING_LWIP */
 
-int cmd_ps(int argc, char **argv)
-{
-    extern long list_thread(void);
-    extern int list_module(void);
-
-#ifdef RT_USING_MODULE
-    if ((argc == 2) && (strcmp(argv[1], "-m") == 0))
-        list_module();
-    else
-#endif
-        list_thread();
-    return 0;
-}
-FINSH_FUNCTION_EXPORT_ALIAS(cmd_ps, __cmd_ps, List threads in the system.);
-
-int cmd_time(int argc, char **argv)
-{
-    return 0;
-}
-FINSH_FUNCTION_EXPORT_ALIAS(cmd_time, __cmd_time, Execute command with time.);
 
 #ifdef RT_USING_HEAP
 int cmd_free(int argc, char **argv)
