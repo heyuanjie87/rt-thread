@@ -28,7 +28,7 @@ struct dfs_file_ops
     int (*read)     (struct dfs_fd *fd, void *buf, size_t count);
     int (*write)    (struct dfs_fd *fd, const void *buf, size_t count);
     int (*flush)    (struct dfs_fd *fd);
-    int (*lseek)    (struct dfs_fd *fd, off_t offset);
+    int (*lseek)    (struct dfs_fd *fd, off_t offset, int whence);
     int (*getdents) (struct dfs_fd *fd, struct dirent *dirp, uint32_t count);
 
     int (*poll)     (struct dfs_fd *fd, struct rt_pollreq *req);
@@ -59,7 +59,7 @@ int dfs_file_getdents(struct dfs_fd *fd, struct dirent *dirp, size_t nbytes);
 int dfs_file_unlink(const char *path);
 int dfs_file_write(struct dfs_fd *fd, const void *buf, size_t len);
 int dfs_file_flush(struct dfs_fd *fd);
-int dfs_file_lseek(struct dfs_fd *fd, off_t offset);
+int dfs_file_lseek(struct dfs_fd *fd, off_t offset, int whence);
 
 int dfs_file_stat(const char *path, struct stat *buf);
 int dfs_file_rename(const char *oldpath, const char *newpath);

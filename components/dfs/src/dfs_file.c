@@ -266,7 +266,7 @@ int dfs_file_flush(struct dfs_fd *fd)
  *
  * @return the current position after seek.
  */
-int dfs_file_lseek(struct dfs_fd *fd, off_t offset)
+int dfs_file_lseek(struct dfs_fd *fd, off_t offset, int whence)
 {
     int result;
 
@@ -276,11 +276,7 @@ int dfs_file_lseek(struct dfs_fd *fd, off_t offset)
     if (fd->fops->lseek == NULL)
         return -ENOSYS;
 
-    result = fd->fops->lseek(fd, offset);
-
-    /* update current position */
-    if (result >= 0)
-        fd->pos = result;
+    result = fd->fops->lseek(fd, offset, whence);
 
     return result;
 }

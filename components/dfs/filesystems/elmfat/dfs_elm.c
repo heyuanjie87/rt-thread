@@ -418,8 +418,6 @@ int dfs_elm_open(struct dfs_fd *file)
 #endif
         if (result == FR_OK)
         {
-            file->pos  = fd->fptr;
-            file->size = f_size(fd);
             file->data = fd;
 
             if (file->flags & O_APPEND)
@@ -536,7 +534,7 @@ int dfs_elm_flush(struct dfs_fd *file)
     return elm_result_to_dfs(result);
 }
 
-int dfs_elm_lseek(struct dfs_fd *file, rt_off_t offset)
+int dfs_elm_lseek(struct dfs_fd *file, off_t offset, int whence)
 {
     FRESULT result = FR_OK;
     if (file->type == FT_REGULAR)
@@ -550,8 +548,6 @@ int dfs_elm_lseek(struct dfs_fd *file, rt_off_t offset)
         result = f_lseek(fd, offset);
         if (result == FR_OK)
         {
-            /* return current position */
-            file->pos = fd->fptr;
             return fd->fptr;
         }
     }
@@ -566,9 +562,7 @@ int dfs_elm_lseek(struct dfs_fd *file, rt_off_t offset)
         result = f_seekdir(dir, offset / sizeof(struct dirent));
         if (result == FR_OK)
         {
-            /* update file position */
-            file->pos = offset;
-            return file->pos;
+            return offset;
         }
     }
 
@@ -580,7 +574,7 @@ int dfs_elm_getdents(struct dfs_fd *file, struct dirent *dirp, uint32_t count)
     DIR *dir;
     FILINFO fno;
     FRESULT result;
-    rt_uint32_t index;
+    int index;
     struct dirent *d;
 
     dir = (DIR *)(file->data);
@@ -625,8 +619,6 @@ int dfs_elm_getdents(struct dfs_fd *file, struct dirent *dirp, uint32_t count)
 
     if (index == 0)
         return elm_result_to_dfs(result);
-
-    file->pos += index * sizeof(struct dirent);
 
     return index * sizeof(struct dirent);
 }

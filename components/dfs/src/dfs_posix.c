@@ -211,46 +211,10 @@ off_t lseek(int fd, off_t offset, int whence)
         return -1;
     }
 
-    switch (whence)
-    {
-    case SEEK_SET:
-        break;
-
-    case SEEK_CUR:
-        offset += d->pos;
-        break;
-
-    case SEEK_END:
-        offset += d->size;
-        break;
-
-    default:
-        fd_put(d);
-        rt_set_errno(-EINVAL);
-
-        return -1;
-    }
-
-    if (offset < 0)
-    {
-        fd_put(d);
-        rt_set_errno(-EINVAL);
-
-        return -1;
-    }
-    result = dfs_file_lseek(d, offset);
-    if (result < 0)
-    {
-        fd_put(d);
-        rt_set_errno(result);
-
-        return -1;
-    }
-
-    /* release the ref-count of fd */
+    result = dfs_file_lseek(d, offset, whence);
     fd_put(d);
 
-    return offset;
+    return result;
 }
 RTM_EXPORT(lseek);
 
@@ -722,7 +686,7 @@ void seekdir(DIR *d, off_t offset)
     }
 
     /* seek to the offset position of directory */
-    if (dfs_file_lseek(fd, offset) >= 0)
+    if (dfs_file_lseek(fd, offset, 0) >= 0)
         d->num = d->cur = 0;
     fd_put(fd);
 }
@@ -747,7 +711,7 @@ void rewinddir(DIR *d)
     }
 
     /* seek to the beginning of directory */
-    if (dfs_file_lseek(fd, 0) >= 0)
+    if (dfs_file_lseek(fd, 0, 0) >= 0)
         d->num = d->cur = 0;
     fd_put(fd);
 }
