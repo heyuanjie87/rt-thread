@@ -435,49 +435,4 @@ struct dfs_fdtable* dfs_fdtable_get(void)
     return fdt;
 }
 
-#ifdef RT_USING_FINSH
-#include <finsh.h>
-int list_fd(void)
-{
-    int index;
-    struct dfs_fdtable *fd_table;
-    
-    fd_table = dfs_fdtable_get();
-    if (!fd_table) return -1;
-
-    rt_enter_critical();
-    
-    rt_kprintf("fd type    ref magic  path\n");
-    rt_kprintf("-- ------  --- ----- ------\n");
-    for (index = 0; index < fd_table->maxfd; index ++)
-    {
-        struct dfs_fd *fd = fd_table->fds[index];
-
-        if (fd && fd->fops)
-        {
-            rt_kprintf("%2d ", index);
-            if (fd->type == FT_DIRECTORY)    rt_kprintf("%-7.7s ", "dir");
-            else if (fd->type == FT_REGULAR) rt_kprintf("%-7.7s ", "file");
-            else if (fd->type == FT_SOCKET)  rt_kprintf("%-7.7s ", "socket");
-            else if (fd->type == FT_USER)    rt_kprintf("%-7.7s ", "user");
-            else rt_kprintf("%-8.8s ", "unknown");
-            rt_kprintf("%3d ", fd->ref_count);
-
-            if (fd->path)
-            {
-                rt_kprintf("%s\n", fd->path);
-            }
-            else
-            {
-                rt_kprintf("\n");
-            }
-        }
-    }
-    rt_exit_critical();
-
-    return 0;
-}
-MSH_CMD_EXPORT(list_fd, list file descriptor);
-#endif
 /*@}*/
-

@@ -23,24 +23,6 @@
 extern char working_directory[];
 #endif
 
-int cmd_cp(int argc, char **argv)
-{
-    void copy(const char *src, const char *dst);
-
-    if (argc != 3)
-    {
-        rt_kprintf("Usage: cp SOURCE DEST\n");
-        rt_kprintf("Copy SOURCE to DEST.\n");
-    }
-    else
-    {
-        copy(argv[1], argv[2]);
-    }
-
-    return 0;
-}
-FINSH_FUNCTION_EXPORT_ALIAS(cmd_cp, __cmd_cp, Copy SOURCE to DEST.);
-
 int cmd_mv(int argc, char **argv)
 {
     if (argc != 3)
@@ -127,29 +109,6 @@ int cmd_pwd(int argc, char **argv)
 FINSH_FUNCTION_EXPORT_ALIAS(cmd_pwd, __cmd_pwd, Print the name of the current working directory.);
 #endif
 
-
-extern int df(const char *path);
-int cmd_df(int argc, char** argv)
-{
-    if (argc != 2)
-    {
-        df("/");
-    }
-    else
-    {
-        if ((strcmp(argv[1], "--help") == 0) || (strcmp(argv[1], "-h") == 0))
-        {
-            rt_kprintf("df [path]\n");
-        }
-        else
-        {
-            df(argv[1]);
-        }
-    }
-
-    return 0;
-}
-FINSH_FUNCTION_EXPORT_ALIAS(cmd_df, __cmd_df, disk free);
 
 #endif
 
