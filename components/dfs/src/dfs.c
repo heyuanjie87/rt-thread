@@ -263,67 +263,6 @@ void fd_put(struct dfs_fd *fd)
 }
 
 /**
- * @ingroup Fd
- *
- * This function will return whether this file has been opend.
- *
- * @param pathname the file path name.
- *
- * @return 0 on file has been open successfully, -1 on open failed.
- */
-int fd_is_open(const char *pathname)
-{
-    char *fullpath;
-    unsigned int index;
-    struct dfs_filesystem *fs;
-    struct dfs_fd *fd;
-    struct dfs_fdtable *fdt;
-
-    fdt = dfs_fdtable_get();
-    fullpath = dfs_normalize_path(NULL, pathname);
-    if (fullpath != NULL)
-    {
-        char *mountpath;
-        fs = dfs_filesystem_lookup(fullpath);
-        if (fs == NULL)
-        {
-            /* can't find mounted file system */
-            rt_free(fullpath);
-
-            return -1;
-        }
-
-        /* get file path name under mounted file system */
-        if (fs->path[0] == '/' && fs->path[1] == '\0')
-            mountpath = fullpath;
-        else
-            mountpath = fullpath + strlen(fs->path);
-
-        dfs_lock();
-
-        for (index = 0; index < fdt->maxfd; index++)
-        {
-            fd = fdt->fds[index];
-            if (fd == NULL || fd->fops == NULL || fd->path == NULL) continue;
-
-            if (fd->fs == fs && strcmp(fd->path, mountpath) == 0)
-            {
-                /* found file in file descriptor table */
-                rt_free(fullpath);
-                dfs_unlock();
-
-                return 0;
-            }
-        }
-        dfs_unlock();
-
-        rt_free(fullpath);
-    }
-
-    return -1;
-}
-
-/**
  * this function will return a sub-path name under directory.
  *
  * @param directory the parent directory.

@@ -77,7 +77,6 @@ int dfs_file_open(struct dfs_fd *fd, const char *path, int flags)
         fd->flags |= DFS_F_DIRECTORY;
     }
 
-    LOG_I("open successful");
     return 0;
 }
 
@@ -101,9 +100,6 @@ int dfs_file_close(struct dfs_fd *fd)
     /* close fd error, return */
     if (result < 0)
         return result;
-
-    rt_free(fd->path);
-    fd->path = NULL;
 
     return result;
 }
@@ -205,46 +201,22 @@ int dfs_file_getdents(struct dfs_fd *fd, struct dirent *dirp, size_t nbytes)
 int dfs_file_unlink(const char *path)
 {
     int result;
-    char *fullpath;
     struct dfs_filesystem *fs;
 
-    /* Make sure we have an absolute path */
-    fullpath = dfs_normalize_path(NULL, path);
-    if (fullpath == NULL)
-    {
-        return -EINVAL;
-    }
-
     /* get filesystem */
-    if ((fs = dfs_filesystem_lookup(fullpath)) == NULL)
+    if ((fs = dfs_filesystem_lookup(path)) == NULL)
     {
         result = -ENOENT;
         goto __exit;
     }
 
-    /* Check whether file is already open */
-    if (fd_is_open(fullpath) == 0)
-    {
-        result = -EBUSY;
-        goto __exit;
-    }
-
     if (fs->ops->unlink != NULL)
     {
-        if (!(fs->ops->flags & DFS_FS_FLAG_FULLPATH))
-        {
-            if (dfs_subdir(fs->path, fullpath) == NULL)
-                result = fs->ops->unlink(fs, "/");
-            else
-                result = fs->ops->unlink(fs, dfs_subdir(fs->path, fullpath));
-        }
-        else
-            result = fs->ops->unlink(fs, fullpath);
+        result = fs->ops->unlink(fs, path);
     }
     else result = -ENOSYS;
 
 __exit:
-    rt_free(fullpath);
     return result;
 }
 
@@ -323,62 +295,19 @@ int dfs_file_lseek(struct dfs_fd *fd, off_t offset)
  */
 int dfs_file_stat(const char *path, struct stat *buf)
 {
-    int result;
-    char *fullpath;
+    int result = -ENOSYS;
     struct dfs_filesystem *fs;
 
-    fullpath = dfs_normalize_path(NULL, path);
-    if (fullpath == NULL)
+    if ((fs = dfs_filesystem_lookup(path)) == NULL)
     {
-        return -1;
-    }
-
-    if ((fs = dfs_filesystem_lookup(fullpath)) == NULL)
-    {
-        LOG_E(
-                "can't find mounted filesystem on this path:%s", fullpath);
-        rt_free(fullpath);
-
+        LOG_E("can't find mounted filesystem on path:%s", path);
         return -ENOENT;
     }
 
-    if ((fullpath[0] == '/' && fullpath[1] == '\0') ||
-        (dfs_subdir(fs->path, fullpath) == NULL))
+    if (fs->ops->stat == NULL)
     {
-        /* it's the root directory */
-        buf->st_dev   = 0;
-
-        buf->st_mode  = S_IRUSR | S_IRGRP | S_IROTH |
-                        S_IWUSR | S_IWGRP | S_IWOTH;
-        buf->st_mode |= S_IFDIR | S_IXUSR | S_IXGRP | S_IXOTH;
-
-        buf->st_size    = 0;
-        buf->st_mtime   = 0;
-
-        /* release full path */
-        rt_free(fullpath);
-
-        return RT_EOK;
+        result = fs->ops->stat(fs, path, buf);
     }
-    else
-    {
-        if (fs->ops->stat == NULL)
-        {
-            rt_free(fullpath);
-            LOG_E(
-                    "the filesystem didn't implement this function");
-
-            return -ENOSYS;
-        }
-
-        /* get the real file path and get file stat */
-        if (fs->ops->flags & DFS_FS_FLAG_FULLPATH)
-            result = fs->ops->stat(fs, fullpath, buf);
-        else
-            result = fs->ops->stat(fs, dfs_subdir(fs->path, fullpath), buf);
-    }
-
-    rt_free(fullpath);
 
     return result;
 }
@@ -393,46 +322,17 @@ int dfs_file_stat(const char *path, struct stat *buf)
  */
 int dfs_file_rename(const char *oldpath, const char *newpath)
 {
-    int result;
+    int result = -ENOSYS;
     struct dfs_filesystem *oldfs, *newfs;
-    char *oldfullpath, *newfullpath;
 
-    result = RT_EOK;
-    newfullpath = NULL;
-    oldfullpath = NULL;
+    oldfs = dfs_filesystem_lookup(oldpath);
+    newfs = dfs_filesystem_lookup(newpath);
 
-    oldfullpath = dfs_normalize_path(NULL, oldpath);
-    if (oldfullpath == NULL)
+    if (oldfs && (oldfs == newfs))
     {
-        result = -ENOENT;
-        goto __exit;
-    }
-
-    newfullpath = dfs_normalize_path(NULL, newpath);
-    if (newfullpath == NULL)
-    {
-        result = -ENOENT;
-        goto __exit;
-    }
-
-    oldfs = dfs_filesystem_lookup(oldfullpath);
-    newfs = dfs_filesystem_lookup(newfullpath);
-
-    if (oldfs == newfs)
-    {
-        if (oldfs->ops->rename == NULL)
+        if (oldfs->ops->rename)
         {
-            result = -ENOSYS;
-        }
-        else
-        {
-            if (oldfs->ops->flags & DFS_FS_FLAG_FULLPATH)
-                result = oldfs->ops->rename(oldfs, oldfullpath, newfullpath);
-            else
-                /* use sub directory to rename in file system */
-                result = oldfs->ops->rename(oldfs,
-                                            dfs_subdir(oldfs->path, oldfullpath),
-                                            dfs_subdir(newfs->path, newfullpath));
+            result = oldfs->ops->rename(oldfs, oldpath, newpath);
         }
     }
     else
@@ -440,11 +340,6 @@ int dfs_file_rename(const char *oldpath, const char *newpath)
         result = -EXDEV;
     }
 
-__exit:
-    rt_free(oldfullpath);
-    rt_free(newfullpath);
-
-    /* not at same file system, return EXDEV */
     return result;
 }
 

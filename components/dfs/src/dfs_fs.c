@@ -379,9 +379,8 @@ int dfs_mkfs(const char *fs_name, const char *device_name)
 
     if (dev_id == NULL)
     {
-        rt_set_errno(-ENODEV);
         LOG_E("Device (%s) was not found", device_name);
-        return -1;
+        return -ENODEV;
     }
 
     /* lock file system */
@@ -402,8 +401,7 @@ int dfs_mkfs(const char *fs_name, const char *device_name)
         if (ops->mkfs == NULL)
         {
             LOG_E("The file system (%s) mkfs function was not implement", fs_name);
-            rt_set_errno(-ENOSYS);
-            return -1;
+            return -ENOSYS;
         }
 
         return ops->mkfs(dev_id);
