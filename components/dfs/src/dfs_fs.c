@@ -260,6 +260,7 @@ int dfs_mount(const char   *device_name,
         return -ENODEV;
     }
 
+    if (path[1] != '\0')
     {
         struct dfs_fd fd;
 
@@ -270,7 +271,7 @@ int dfs_mount(const char   *device_name,
         dfs_file_close(&fd);
     }
 
-    ret = _fs_new(*ops, path, 0, data, dev_id, 0);
+    ret = _fs_new(*ops, path, 0, data, dev_id, 1);
 
     return ret;
 }
