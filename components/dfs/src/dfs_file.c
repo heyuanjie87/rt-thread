@@ -304,7 +304,7 @@ int dfs_file_stat(const char *path, struct stat *buf)
         return -ENOENT;
     }
 
-    if (fs->ops->stat == NULL)
+    if (fs->ops->stat)
     {
         result = fs->ops->stat(fs, path, buf);
     }
