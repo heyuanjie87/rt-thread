@@ -121,19 +121,23 @@ int dfs_device_fs_close(struct dfs_fd *file)
 
 int dfs_device_fs_open(struct dfs_fd *file)
 {
-    rt_err_t result;
+    int result;
     rt_device_t device;
+    struct dfs_filesystem *fs;
 
+    fs = (struct dfs_filesystem*)file->data;
     /* open root directory */
-    if ((file->path[0] == '/') && (file->path[1] == '\0') &&
-        (file->flags & O_DIRECTORY))
+    if (file->flags & O_DIRECTORY)
     {
         struct rt_object *object;
         struct rt_list_node *node;
         struct rt_object_information *information;
         struct device_dirent *root_dirent;
-        rt_uint32_t count = 0;
-        
+        int count = 0;
+
+        if (rt_strcmp(file->path, fs->path))
+            return -ENOENT;
+
         /* lock scheduler */
         rt_enter_critical();
 
@@ -166,7 +170,7 @@ int dfs_device_fs_open(struct dfs_fd *file)
         /* set data */
         file->data = root_dirent;
         
-        return RT_EOK;
+        return 0;
     }
     
     file->path += 4;

@@ -174,18 +174,17 @@ int fd_new(void)
     /* can't find an empty fd entry */
     if (idx == fdt->maxfd)
     {
-        idx = -(1 + DFS_FD_OFFSET);
-        LOG_E( "DFS fd new is failed! Could not found an empty fd entry.");
+        LOG_E( "Could not found an empty fd entry.");
+        idx = -1;
         goto __result;
     }
 
     d = fdt->fds[idx];
     d->ref_count = 1;
-    d->magic = DFS_FD_MAGIC;
 
 __result:
     dfs_unlock();
-    return idx + DFS_FD_OFFSET;
+    return idx;
 }
 
 /**
@@ -202,13 +201,7 @@ struct dfs_fd *fd_get(int fd)
     struct dfs_fd *d;
     struct dfs_fdtable *fdt;
 
-#if defined(RT_USING_DFS_DEVFS) && defined(RT_USING_POSIX)
-    if ((0 <= fd) && (fd <= 2))
-        fd = libc_stdio_get_console();
-#endif
-
     fdt = dfs_fdtable_get();
-    fd = fd - DFS_FD_OFFSET;
     if (fd < 0 || fd >= fdt->maxfd)
         return NULL;
 
@@ -216,7 +209,7 @@ struct dfs_fd *fd_get(int fd)
     d = fdt->fds[fd];
 
     /* check dfs_fd valid or not */
-    if ((d == NULL) || (d->magic != DFS_FD_MAGIC))
+    if (d == NULL)
     {
         dfs_unlock();
         return NULL;
@@ -469,7 +462,7 @@ int list_fd(void)
             else if (fd->type == FT_USER)    rt_kprintf("%-7.7s ", "user");
             else rt_kprintf("%-8.8s ", "unknown");
             rt_kprintf("%3d ", fd->ref_count);
-            rt_kprintf("%04x  ", fd->magic);
+
             if (fd->path)
             {
                 rt_kprintf("%s\n", fd->path);

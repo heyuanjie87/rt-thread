@@ -35,15 +35,12 @@ struct dfs_file_ops
 };
 
 /* file descriptor */
-#define DFS_FD_MAGIC     0xfdfd
 struct dfs_fd
 {
-    uint16_t magic;              /* file descriptor magic number */
     uint16_t type;               /* Type (regular or socket) */
+    uint16_t ref_count;          /* Descriptor reference count */
 
     char *path;                  /* Name (below mount point) */
-    int ref_count;               /* Descriptor reference count */
-
     struct dfs_filesystem *fs;
     const struct dfs_file_ops *fops;
 

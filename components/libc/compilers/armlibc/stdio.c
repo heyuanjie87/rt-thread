@@ -29,15 +29,8 @@ int libc_stdio_set_console(const char* device_name, int mode)
 	snprintf(name, sizeof(name) - 1, ":dev/%s", device_name);
     name[STDIO_DEVICE_NAME_MAX - 1] = '\0';
 
-    fd = open(name, mode, 0);
-    if (fd >= 0)
-    {
-        if (std_fd >= 0)
-        {
-            close(std_fd);
-        }
-        std_fd = fd;
-    }
+    std_fd = open(name, mode, 0);
+    std_fd = open(name, mode, 0);
 
     return std_fd;
 }

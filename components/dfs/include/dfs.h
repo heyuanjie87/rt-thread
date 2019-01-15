@@ -28,13 +28,6 @@
 #define DFS_FD_MAX              4
 #endif
 
-/*
- * skip stdin/stdout/stderr normally
- */
-#ifndef DFS_FD_OFFSET
-#define DFS_FD_OFFSET           3
-#endif
-
 #ifndef DFS_PATH_MAX
 #define DFS_PATH_MAX             256
 #endif
