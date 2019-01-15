@@ -325,15 +325,13 @@ int dfs_elm_open(struct dfs_fd *file)
     BYTE mode;
     FRESULT result;
     char *drivers_fn;
-
-#if (_VOLUMES > 1)
     int vol;
     struct dfs_filesystem *fs = (struct dfs_filesystem *)file->data;
     extern int elm_get_vol(FATFS * fat);
 
-    if (fs == NULL)
-        return -ENOENT;
+    file->path += rt_strlen(fs->path);
 
+#if (_VOLUMES > 1)
     /* add path for ELM FatFS driver support */
     vol = elm_get_vol((FATFS *)fs->data);
     if (vol < 0)

@@ -271,6 +271,15 @@ int dfs_mount(const char   *device_name,
         dfs_file_close(&fd);
     }
 
+    /* open device, but do not check the status of device */
+    if (dev_id != NULL)
+    {
+        if (rt_device_open(dev_id, RT_DEVICE_OFLAG_RDWR) != 0)
+        {
+            return -EIO;
+        }
+    }
+
     ret = _fs_new(*ops, path, 0, data, dev_id, 1);
 
     return ret;
