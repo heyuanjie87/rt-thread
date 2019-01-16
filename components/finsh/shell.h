@@ -58,53 +58,29 @@ enum input_stat
     WAIT_SPEC_KEY,
     WAIT_FUNC_KEY,
 };
+
 struct finsh_shell
 {
-    struct rt_semaphore rx_sem;
-
     enum input_stat stat;
 
-    rt_uint8_t echo_mode:1;
-    rt_uint8_t prompt_mode: 1;
+    unsigned char echo_mode:1;
+    unsigned char prompt_mode: 1;
 
 #ifdef FINSH_USING_HISTORY
-    rt_uint16_t current_history;
-    rt_uint16_t history_count;
-
+    short current_history;
+    short history_count;
     char cmd_history[FINSH_HISTORY_LINES][FINSH_CMD_SIZE];
 #endif
 
-#ifndef FINSH_USING_MSH_ONLY
-    struct finsh_parser parser;
-#endif
-
     char line[FINSH_CMD_SIZE];
-    rt_uint8_t line_position;
-    rt_uint8_t line_curpos;
-
-#ifndef RT_USING_POSIX
-    rt_device_t device;
-#endif
+    unsigned char line_position;
+    unsigned char line_curpos;
 
 #ifdef FINSH_USING_AUTH
     char password[FINSH_PASSWORD_MAX];
 #endif
 };
 
-void finsh_set_echo(rt_uint32_t echo);
-rt_uint32_t finsh_get_echo(void);
-
-int finsh_system_init(void);
-void finsh_set_device(const char* device_name);
-const char* finsh_get_device(void);
-
-rt_uint32_t finsh_get_prompt_mode(void);
-void finsh_set_prompt_mode(rt_uint32_t prompt_mode);
-
-#ifdef FINSH_USING_AUTH
-rt_err_t finsh_set_password(const char *password);
-const char *finsh_get_password(void);
-#endif
+void shell_run(struct finsh_shell *shell);
 
 #endif
-

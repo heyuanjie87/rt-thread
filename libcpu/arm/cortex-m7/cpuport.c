@@ -402,10 +402,6 @@ void rt_hw_hard_fault_exception(struct exception_info *exception_info)
     if (exception_info->exc_return & (1 << 2))
     {
         rt_kprintf("hard fault on thread: %s\r\n\r\n", rt_thread_self()->name);
-
-#ifdef RT_USING_FINSH
-        list_thread();
-#endif
     }
     else
     {
