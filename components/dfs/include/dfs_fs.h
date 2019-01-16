@@ -91,6 +91,10 @@ int dfs_pseudo_mount(const char *path,
                      const struct dfs_filesystem_ops *fsops,
                      const void *data);
 
+int dfs_filesystem_get_partition(struct dfs_partition *part,
+                                      uint8_t         *buf,
+                                      uint32_t        pindex);
+
 #ifdef __cplusplus
 }
 #endif

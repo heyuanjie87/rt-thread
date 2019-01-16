@@ -164,9 +164,15 @@ static void _ls(const char *path)
 
             if (dirent != 0)
             {
-                memset(&stat, 0, sizeof(struct stat));
+                char* fn;
+                int n;
 
-                if (stat(path, &st) == 0)
+                n = strlen(path) + dirent->d_namlen + 1;
+                fn =  rt_malloc(n);
+                memset(&stat, 0, sizeof(struct stat));
+                snprintf(fn, n, "%s%s", path, dirent->d_name);
+
+                if (stat(fn, &st) == 0)
                 {
                     printf("%-20s", dirent->d_name);
                     if (S_ISDIR(st.st_mode))
@@ -180,6 +186,7 @@ static void _ls(const char *path)
                 }
                 else
                     printf("BAD file: %s\n", dirent->d_name);
+                rt_free(fn);
             }
         }while(dirent != 0);
 
