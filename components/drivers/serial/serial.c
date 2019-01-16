@@ -93,7 +93,7 @@ _free:
     rt_ringbuffer_destroy(s->rxrb);
     rt_ringbuffer_destroy(s->txrb);
 
-    return -EIO;
+    return ret;
 }
 
 static int _raw_read(rt_serial_t *s, int nb, uint8_t *buf, size_t size)

@@ -32,7 +32,7 @@ static rt_list_t _fs_list = {&_fs_list, &_fs_list};
  */
 int dfs_register(const struct dfs_filesystem_ops *ops)
 {
-    int ret = RT_EOK;
+    int ret = 0;
     const struct dfs_filesystem_ops **empty = NULL;
     const struct dfs_filesystem_ops **iter;
 
@@ -47,8 +47,7 @@ int dfs_register(const struct dfs_filesystem_ops *ops)
             (empty == NULL) ? (empty = iter) : 0;
         else if (strcmp((*iter)->name, ops->name) == 0)
         {
-            rt_set_errno(-EEXIST);
-            ret = -1;
+            ret = -EEXIST;
             break;
         }
     }
@@ -56,11 +55,10 @@ int dfs_register(const struct dfs_filesystem_ops *ops)
     /* save the filesystem's operations */
     if (empty == NULL)
     {
-        rt_set_errno(-ENOSPC);
         LOG_E("There is no space to register this file system (%d).", ops->name);
-        ret = -1;
+        ret = -ENOSPC;
     }
-    else if (ret == RT_EOK)
+    else if (ret == 0)
     {
         *empty = ops;
     }
@@ -112,62 +110,6 @@ static struct dfs_filesystem* _fs_find(const char *path, int ca)
 struct dfs_filesystem *dfs_filesystem_lookup(const char *path)
 {
     return _fs_find(path, 0);
-}
-
-/**
- * this function will fetch the partition table on specified buffer.
- *
- * @param part the returned partition structure.
- * @param buf the buffer contains partition table.
- * @param pindex the index of partition table to fetch.
- *
- * @return RT_EOK on successful or -RT_ERROR on failed.
- */
-int dfs_filesystem_get_partition(struct dfs_partition *part,
-                                      uint8_t         *buf,
-                                      uint32_t        pindex)
-{
-#define DPT_ADDRESS     0x1be       /* device partition offset in Boot Sector */
-#define DPT_ITEM_SIZE   16          /* partition item size */
-
-    uint8_t *dpt;
-    uint8_t type;
-
-    RT_ASSERT(part != NULL);
-    RT_ASSERT(buf != NULL);
-
-    dpt = buf + DPT_ADDRESS + pindex * DPT_ITEM_SIZE;
-
-    /* check if it is a valid partition table */
-    if ((*dpt != 0x80) && (*dpt != 0x00))
-        return -EIO;
-
-    /* get partition type */
-    type = *(dpt+4);
-    if (type == 0)
-        return -EIO;
-
-    /* set partition information
-     *    size is the number of 512-Byte */
-    part->type = type;
-    part->offset = *(dpt+8) | *(dpt+9)<<8 | *(dpt+10)<<16 | *(dpt+11)<<24;
-    part->size = *(dpt+12) | *(dpt+13)<<8 | *(dpt+14)<<16 | *(dpt+15)<<24;
-
-    rt_kprintf("found part[%d], begin: %d, size: ",
-               pindex, part->offset*512);
-    if ((part->size>>11) == 0)
-        rt_kprintf("%d%s",part->size>>1,"KB\n");     /* KB */
-    else
-    {
-        unsigned int part_size;
-        part_size = part->size >> 11;                /* MB */
-        if ((part_size>>10) == 0)
-            rt_kprintf("%d.%d%s",part_size,(part->size>>1)&0x3FF,"MB\n");
-        else
-            rt_kprintf("%d.%d%s",part_size>>10,part_size&0x3FF,"GB\n");
-    }
-
-    return RT_EOK;
 }
 
 static int _fs_new(const struct dfs_filesystem_ops *ops, 
@@ -443,32 +385,5 @@ int dfs_statfs(const char *path, struct statfs *buffer)
 
     return -1;
 }
-
-#ifdef RT_USING_DFS_MNTTABLE
-int dfs_mount_table(void)
-{
-    int index = 0;
-
-    while (1)
-    {
-        if (mount_table[index].path == NULL) break;
-
-        if (dfs_mount(mount_table[index].device_name,
-                mount_table[index].path,
-                mount_table[index].filesystemtype,
-                mount_table[index].rwflag,
-                mount_table[index].data) != 0)
-        {
-            rt_kprintf("mount fs[%s] on %s failed.\n", mount_table[index].filesystemtype,
-                mount_table[index].path);
-            return -RT_ERROR;
-        }
-
-        index ++;
-    }
-    return 0;
-}
-INIT_ENV_EXPORT(dfs_mount_table);
-#endif
 
 /* @} */

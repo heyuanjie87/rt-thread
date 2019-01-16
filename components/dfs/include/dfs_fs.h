@@ -77,10 +77,6 @@ struct dfs_mount_tbl
 int dfs_register(const struct dfs_filesystem_ops *ops);
 struct dfs_filesystem *dfs_filesystem_lookup(const char *path);
 
-int dfs_filesystem_get_partition(struct dfs_partition *part,
-                                      uint8_t         *buf,
-                                      uint32_t        pindex);
-
 int dfs_mount(const char *device_name,
               const char *path,
               const char *filesystemtype,
