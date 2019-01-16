@@ -958,7 +958,6 @@ struct rt_device
 
 #if defined(RT_USING_POSIX)
     const struct dfs_file_ops *fops;
-    struct rt_wqueue wait_queue;
 #endif
 
     void                     *user_data;                /**< device private data */

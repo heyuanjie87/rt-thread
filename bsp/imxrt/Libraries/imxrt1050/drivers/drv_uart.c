@@ -1,22 +1,27 @@
 /*
- * Copyright (c) 2006-2018, RT-Thread Development Team
+ * File      : drv_uart.c
+ * This file is part of RT-Thread RTOS
+ * COPYRIGHT (C) 2006-2013, RT-Thread Development Team
  *
- * SPDX-License-Identifier: Apache-2.0
+ * The license and distribution terms for this file may be
+ * found in the file LICENSE in this distribution or at
+ * http://www.rt-thread.org/license/LICENSE
  *
  * Change Logs:
  * Date           Author       Notes
  * 2017-10-10     Tanek        the first version
  * 2018-03-17     laiyiketang  Add other uart.
  */
-#include <rtthread.h>
-#include "drv_uart.h"
 
 #include "fsl_common.h"
 #include "fsl_lpuart.h"
 #include "fsl_iomuxc.h"
+#include "drv_uart.h"
+ #include <rtdevice.h>
 
 #ifdef RT_USING_SERIAL
 
+/* GPIO外设时钟会在LPUART_Init中自动配置, 如果定义了以下宏则不会自动配置 */
 #if defined(FSL_SDK_DISABLE_DRIVER_CLOCK_CONTROL) && FSL_SDK_DISABLE_DRIVER_CLOCK_CONTROL
 #error "Please don't define 'FSL_SDK_DISABLE_DRIVER_CLOCK_CONTROL'!"
 #endif
@@ -26,24 +31,23 @@
     !defined(RT_USING_UART5) && !defined(RT_USING_UART6) && \
     !defined(RT_USING_UART7) && !defined(RT_USING_UART8)
 #error "Please define at least one UARTx"
-#endif
 
-#include <rtdevice.h>
+#endif
 
 /* imxrt uart driver */
 struct imxrt_uart
 {
-    LPUART_Type *uart_base;
+    LPUART_Type * uart_base;
     IRQn_Type irqn;
 
-    struct rt_serial_device *serial;
+    rt_serial_t * serial;
     char *device_name;
 };
 
-static void uart_isr(struct rt_serial_device *serial);
+static void uart_isr(rt_serial_t *serial);
 
 #if defined(RT_USING_UART1)
-struct rt_serial_device serial1;
+static rt_serial_t serial1;
 
 void LPUART1_IRQHandler(void)
 {
@@ -121,8 +125,7 @@ void LPUART8_IRQHandler(void)
 
 #endif /* RT_USING_UART8 */
 
-static const struct imxrt_uart uarts[] =
-{
+static const struct imxrt_uart uarts[] = {
 #ifdef RT_USING_UART1
     {
         LPUART1,
@@ -191,7 +194,7 @@ static const struct imxrt_uart uarts[] =
 };
 
 /* Get debug console frequency. */
-uint32_t GetUartSrcFreq(void)
+uint32_t BOARD_DebugConsoleSrcFreq(void)
 {
     uint32_t freq;
 
@@ -224,6 +227,7 @@ void imxrt_uart_gpio_init(struct imxrt_uart *uart)
     if (uart->uart_base != RT_NULL)
     {
 #ifdef RT_USING_UART1
+        CLOCK_EnableClock(kCLOCK_Iomuxc);           /* iomuxc clock (iomuxc_clk_enable): 0x03u */
 
         IOMUXC_SetPinMux(
             IOMUXC_GPIO_AD_B0_12_LPUART1_TX,        /* GPIO_AD_B0_12 is configured as LPUART1_TX */
@@ -253,6 +257,7 @@ void imxrt_uart_gpio_init(struct imxrt_uart *uart)
                                                      Hyst. Enable Field: Hysteresis Disabled */
 #endif
 #ifdef RT_USING_UART2
+        CLOCK_EnableClock(kCLOCK_Iomuxc);
 
         IOMUXC_SetPinMux(
             IOMUXC_GPIO_AD_B1_02_LPUART2_TX,
@@ -263,12 +268,15 @@ void imxrt_uart_gpio_init(struct imxrt_uart *uart)
         IOMUXC_SetPinConfig(
             IOMUXC_GPIO_AD_B1_02_LPUART2_TX,
             0x10B0u);
+
+
         IOMUXC_SetPinConfig(
             IOMUXC_GPIO_AD_B1_03_LPUART2_RX,
             0x10B0u);
 
 #endif
 #ifdef RT_USING_UART3
+        CLOCK_EnableClock(kCLOCK_Iomuxc);
 
         IOMUXC_SetPinMux(
             IOMUXC_GPIO_AD_B1_06_LPUART3_TX,
@@ -279,25 +287,14 @@ void imxrt_uart_gpio_init(struct imxrt_uart *uart)
         IOMUXC_SetPinConfig(
             IOMUXC_GPIO_AD_B1_06_LPUART3_TX,
             0x10B0u);
+
         IOMUXC_SetPinConfig(
             IOMUXC_GPIO_AD_B1_07_LPUART3_RX,
             0x10B0u);
 #endif
 #ifdef RT_USING_UART4
-#ifdef BOARD_RT1050_ATK
-        IOMUXC_SetPinMux(
-            IOMUXC_GPIO_SD_B1_00_LPUART4_TX,
-            0U);
-        IOMUXC_SetPinMux(
-            IOMUXC_GPIO_SD_B1_01_LPUART4_RX,
-            0U);
-        IOMUXC_SetPinConfig(
-            IOMUXC_GPIO_SD_B1_00_LPUART4_TX,
-            0x10B0u);
-        IOMUXC_SetPinConfig(
-            IOMUXC_GPIO_SD_B1_01_LPUART4_RX,
-            0x10B0u);
-#else
+        CLOCK_EnableClock(kCLOCK_Iomuxc);
+
         IOMUXC_SetPinMux(
             IOMUXC_GPIO_B1_00_LPUART4_TX,
             0U);
@@ -307,12 +304,13 @@ void imxrt_uart_gpio_init(struct imxrt_uart *uart)
         IOMUXC_SetPinConfig(
             IOMUXC_GPIO_B1_00_LPUART4_TX,
             0x10B0u);
+
         IOMUXC_SetPinConfig(
             IOMUXC_GPIO_B1_01_LPUART4_RX,
             0x10B0u);
-#endif
 #endif
 #ifdef RT_USING_UART5
+        CLOCK_EnableClock(kCLOCK_Iomuxc);
 
         IOMUXC_SetPinMux(
             IOMUXC_GPIO_B1_12_LPUART5_TX,
@@ -323,11 +321,13 @@ void imxrt_uart_gpio_init(struct imxrt_uart *uart)
         IOMUXC_SetPinConfig(
             IOMUXC_GPIO_B1_12_LPUART5_TX,
             0x10B0u);
+
         IOMUXC_SetPinConfig(
             IOMUXC_GPIO_B1_13_LPUART5_RX,
             0x10B0u);
 #endif
 #ifdef RT_USING_UART6
+        CLOCK_EnableClock(kCLOCK_Iomuxc);
 
         IOMUXC_SetPinMux(
             IOMUXC_GPIO_AD_B0_02_LPUART6_TX,
@@ -338,11 +338,13 @@ void imxrt_uart_gpio_init(struct imxrt_uart *uart)
         IOMUXC_SetPinConfig(
             IOMUXC_GPIO_AD_B0_02_LPUART6_TX,
             0x10B0u);
+
         IOMUXC_SetPinConfig(
             IOMUXC_GPIO_AD_B0_03_LPUART6_RX,
             0x10B0u);
 #endif
 #ifdef RT_USING_UART7
+        CLOCK_EnableClock(kCLOCK_Iomuxc);
 
         IOMUXC_SetPinMux(
             IOMUXC_GPIO_EMC_31_LPUART7_TX,
@@ -353,11 +355,13 @@ void imxrt_uart_gpio_init(struct imxrt_uart *uart)
         IOMUXC_SetPinConfig(
             IOMUXC_GPIO_EMC_31_LPUART7_TX,
             0x10B0u);
+
         IOMUXC_SetPinConfig(
             IOMUXC_GPIO_EMC_32_LPUART7_RX,
             0x10B0u);
 #endif
 #ifdef RT_USING_UART8
+        CLOCK_EnableClock(kCLOCK_Iomuxc);
 
         IOMUXC_SetPinMux(
             IOMUXC_GPIO_AD_B1_10_LPUART8_TX,
@@ -368,6 +372,7 @@ void imxrt_uart_gpio_init(struct imxrt_uart *uart)
         IOMUXC_SetPinConfig(
             IOMUXC_GPIO_AD_B1_10_LPUART8_TX,
             0x10B0u);
+
         IOMUXC_SetPinConfig(
             IOMUXC_GPIO_AD_B1_11_LPUART8_RX,
             0x10B0u);
@@ -379,13 +384,10 @@ void imxrt_uart_gpio_init(struct imxrt_uart *uart)
     }
 }
 
-static rt_err_t imxrt_configure(struct rt_serial_device *serial, struct serial_configure *cfg)
+static int imxrt_configure(rt_serial_t *serial, struct serial_configure *cfg)
 {
     struct imxrt_uart *uart;
     lpuart_config_t config;
-
-    RT_ASSERT(serial != RT_NULL);
-    RT_ASSERT(cfg != RT_NULL);
 
     uart = (struct imxrt_uart *)serial->parent.user_data;
 
@@ -394,86 +396,59 @@ static rt_err_t imxrt_configure(struct rt_serial_device *serial, struct serial_c
     LPUART_GetDefaultConfig(&config);
     config.baudRate_Bps = cfg->baud_rate;
 
-    switch (cfg->data_bits)
-    {
-    case DATA_BITS_7:
-        config.dataBitsCount = kLPUART_SevenDataBits;
-        break;
-
-    default:
-        config.dataBitsCount = kLPUART_EightDataBits;
-        break;
-    }
-
-    switch (cfg->stop_bits)
-    {
-    case STOP_BITS_2:
-        config.stopBitCount = kLPUART_TwoStopBit;
-        break;
-    default:
-        config.stopBitCount = kLPUART_OneStopBit;
-        break;
-    }
-
-    switch (cfg->parity)
-    {
-    case PARITY_ODD:
-        config.parityMode = kLPUART_ParityOdd;
-        break;
-    case PARITY_EVEN:
-        config.parityMode = kLPUART_ParityEven;
-        break;
-    default:
-        config.parityMode = kLPUART_ParityDisabled;
-        break;
-    }
+    config.dataBitsCount = kLPUART_EightDataBits;
+    config.stopBitCount = kLPUART_OneStopBit;
+    config.parityMode = kLPUART_ParityDisabled;
 
     config.enableTx = true;
     config.enableRx = true;
 
-    LPUART_Init(uart->uart_base, &config, GetUartSrcFreq());
-    LPUART_EnableInterrupts(uart->uart_base, kLPUART_RxDataRegFullInterruptEnable);
+    LPUART_Init(uart->uart_base, &config, BOARD_DebugConsoleSrcFreq());
 
-    return RT_EOK;
+    return 0;
 }
 
-static rt_err_t imxrt_control(struct rt_serial_device *serial, int cmd, void *arg)
+static int imxrt_control(rt_serial_t *serial, int cmd, long arg)
 {
     struct imxrt_uart *uart;
 
-    RT_ASSERT(serial != RT_NULL);
     uart = (struct imxrt_uart *)serial->parent.user_data;
 
     switch (cmd)
     {
-    case RT_DEVICE_CTRL_CLR_INT:
-        /* disable rx irq */
-        DisableIRQ(uart->irqn);
-
-        break;
-    case RT_DEVICE_CTRL_SET_INT:
-        /* enable rx irq */
-        EnableIRQ(uart->irqn);
-        break;
+    case UART_CMD_SET_INTRX:
+    {
+        if (arg)
+            LPUART_EnableInterrupts(uart->uart_base, kLPUART_RxDataRegFullInterruptEnable);
+        else
+            LPUART_DisableInterrupts(uart->uart_base, kLPUART_RxDataRegFullInterruptEnable);
+    }break;
+    case UART_CMD_SET_INTTX:
+    {
+        if (arg)
+            LPUART_EnableInterrupts(uart->uart_base, kLPUART_TxDataRegEmptyInterruptEnable);
+        else
+            LPUART_DisableInterrupts(uart->uart_base, kLPUART_TxDataRegEmptyInterruptEnable);
+    }break;	
     }
 
-    return RT_EOK;
+    return 0;
 }
 
-static int imxrt_putc(struct rt_serial_device *serial, char ch)
+static int imxrt_putc(rt_serial_t *serial, char ch)
 {
     struct imxrt_uart *uart;
 
     RT_ASSERT(serial != RT_NULL);
     uart = (struct imxrt_uart *)serial->parent.user_data;
 
+	while(!(LPUART_GetStatusFlags(uart->uart_base) & kLPUART_TxDataRegEmptyFlag));
     LPUART_WriteByte(uart->uart_base, ch);
-    while (!(LPUART_GetStatusFlags(uart->uart_base) & kLPUART_TxDataRegEmptyFlag));
 
     return 1;
 }
 
-static int imxrt_getc(struct rt_serial_device *serial)
+static int imxrt_getc(rt_serial_t *serial)
 {
     int ch;
     struct imxrt_uart *uart;
@@ -487,12 +462,29 @@ static int imxrt_getc(struct rt_serial_device *serial)
     return ch;
 }
 
+static int imxrt_init(rt_serial_t *serial)
+{
+    struct imxrt_uart *uart;
+
+    uart = (struct imxrt_uart *)serial->parent.user_data;
+
+    imxrt_uart_gpio_init(uart);
+    EnableIRQ(uart->irqn);
+	
+	return 0;
+}
+
+static void imxrt_deinit(rt_serial_t *serial)
+{
+
+}
+
 /**
  * Uart common interrupt process. This need add to uart ISR.
  *
  * @param serial serial device
  */
-static void uart_isr(struct rt_serial_device *serial)
+static void uart_isr(rt_serial_t *serial)
 {
     struct imxrt_uart *uart;
     LPUART_Type *base;
@@ -511,7 +503,12 @@ static void uart_isr(struct rt_serial_device *serial)
     /* UART in mode Receiver -------------------------------------------------*/
     if (LPUART_GetStatusFlags(base) & kLPUART_RxDataRegFullFlag)
     {
-        rt_hw_serial_isr(serial, RT_SERIAL_EVENT_RX_IND);
+        rt_serial_isr(serial, RT_SERIAL_EVENT_RX_IND);
+    }
+
+    if (LPUART_GetStatusFlags(base) & kLPUART_TxDataRegEmptyInterruptEnable)
+    {
+        rt_serial_isr(serial, RT_SERIAL_EVENT_TX_DONE);
     }
 
     /* If RX overrun. */
@@ -531,31 +528,27 @@ static const struct rt_uart_ops imxrt_uart_ops =
     imxrt_control,
     imxrt_putc,
     imxrt_getc,
+	imxrt_init,
+	imxrt_deinit,    
 };
 
-int imxrt_hw_uart_init(void)
+int imxrt_hw_usart_init(void)
 {
-    struct serial_configure config = RT_SERIAL_CONFIG_DEFAULT;
     int i;
-
-    /* Configure UART divider to default */
-    CLOCK_SetMux(kCLOCK_UartMux, 0); /* Set UART source to PLL3 80M */
-    CLOCK_SetDiv(kCLOCK_UartDiv, 0); /* Set UART divider to 1 */
 
     for (i = 0; i < sizeof(uarts) / sizeof(uarts[0]); i++)
     {
         uarts[i].serial->ops    = &imxrt_uart_ops;
-        uarts[i].serial->config = config;
 
-        /* register UART device */
-        rt_hw_serial_register(uarts[i].serial,
+        /* register UART1 device */
+        rt_serial_register(uarts[i].serial,
                               uarts[i].device_name,
-                              RT_DEVICE_FLAG_RDWR | RT_DEVICE_FLAG_INT_RX,
+                              0,
                               (void *)&uarts[i]);
     }
 
     return 0;
 }
-INIT_BOARD_EXPORT(imxrt_hw_uart_init);
+INIT_DEVICE_EXPORT(imxrt_hw_usart_init);
 
 #endif /*RT_USING_SERIAL */

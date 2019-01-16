@@ -42,148 +42,237 @@
 #include <posix_termios.h>
 #endif
 
-/* it's possible the 'getc/putc' is defined by stdio.h in gcc/newlib. */
-#ifdef getc
-#undef getc
+#ifndef RT_SERIAL_RB_BUFSZ
+#define RT_SERIAL_RB_BUFSZ              32
 #endif
 
-#ifdef putc
-#undef putc
-#endif
-
-static rt_err_t serial_fops_rx_ind(rt_device_t dev, rt_size_t size)
+static int _uart_init(rt_serial_t *s)
 {
-    rt_wqueue_wakeup(&(dev->wait_queue), (void*)POLLIN);
+    int ret = -EIO;
 
-    return RT_EOK;
+    if (s->parent.ref_count)
+    {
+        s->parent.ref_count ++;
+        return 0;
+    }
+    if (!s->ops->init)
+        return -ENOSYS;
+
+    s->rxrb = rt_ringbuffer_create(RT_SERIAL_RB_BUFSZ);
+    s->txrb = rt_ringbuffer_create(RT_SERIAL_RB_BUFSZ);
+    if (!s->rxrb || !s->txrb)
+    {
+        ret = -ENOMEM;
+        goto _free; 
+    }
+
+    if (s->ops->init(s) != 0)
+        goto _free;
+
+    rt_wqueue_init(&s->txwq);
+    rt_wqueue_init(&s->rxwq);
+
+    s->config.baud_rate = 115200;
+    s->config.data_bits = DATA_BITS_8;
+    s->config.parity = UART_PARITY_NONE;
+    s->config.stop_bits = STOP_BITS_1;
+    s->tx_started = 0;
+
+    if (s->ops->configure(s, &s->config) == 0)
+    {
+        if (s->ops->control(s, UART_CMD_SET_INTRX, 1) == 0)
+        {
+            s->parent.ref_count ++;
+            return 0;
+        }
+    }
+
+    if (s->ops->deinit)
+        s->ops->deinit(s);
+_free:
+    rt_ringbuffer_destroy(s->rxrb);
+    rt_ringbuffer_destroy(s->txrb);
+
+    return -EIO;
+}
+
+static int _raw_read(rt_serial_t *s, int nb, uint8_t *buf, size_t size)
+{
+    int ret = 0;
+    int c;
+
+    while (1)
+    {
+        c = rt_ringbuffer_get(s->rxrb, buf, size);
+        if (c == 0)
+        {
+            if (nb && (ret == 0))
+            {
+                ret = -EAGAIN;
+                break;
+            }
+            if (ret)
+                break;
+
+            rt_wqueue_wait(&s->rxwq, 0, -1);            
+        }
+        else
+        {
+            size -= c;
+            buf += c;
+            ret += c;            
+        }
+    }
+
+    return ret;
+}
+
+static int _set_tx_enable(rt_serial_t *s, int en)
+{
+    int ret = 0;
+
+    if (!s->tx_started && en)
+    {
+        s->tx_started = 1;
+        ret = s->ops->control(s, UART_CMD_SET_INTTX, 1);
+    }
+    else if (!en)
+    {
+        ret = s->ops->control(s, UART_CMD_SET_INTTX, 0);
+        s->tx_started = 0;
+    }
+
+    return ret;
+}
+
+static int _raw_write(rt_serial_t *s, int nb, const uint8_t *buf, size_t size)
+{
+    int ret;
+    int c;
+    const uint8_t *dbuf;
+
+    dbuf = buf;
+    while (1)
+    {
+        while (size > 0)
+        {
+            c = rt_ringbuffer_put(s->txrb, dbuf, size);
+            if (!c)
+                break;
+            if (_set_tx_enable(s, 1) != 0)
+                return -EIO;
+            dbuf += c;
+            size -= c;
+        }
+
+        if (!size)
+            break;
+        if (nb)
+        {
+            ret = -EAGAIN;
+            break;
+        }
+        rt_wqueue_wait(&s->txwq, 0, -1); 
+    }
+
+    return (dbuf == buf) ? ret : (dbuf - buf);
 }
 
 /* fops for serial */
 static int serial_fops_open(struct dfs_fd *fd)
 {
-    rt_err_t ret = 0;
-    rt_uint16_t flags = 0;
-    rt_device_t device;
+    int ret;
+    rt_serial_t *s;
 
-    device = (rt_device_t)fd->data;
-    RT_ASSERT(device != RT_NULL);
-
-    switch (fd->flags & O_ACCMODE)
-    {
-    case O_RDONLY:
-        LOG_D("fops open: O_RDONLY!");
-        flags = RT_DEVICE_FLAG_INT_RX | RT_DEVICE_FLAG_RDONLY;
-        break;
-    case O_WRONLY:
-        LOG_D("fops open: O_WRONLY!");
-        flags = RT_DEVICE_FLAG_WRONLY;
-        break;
-    case O_RDWR:
-        LOG_D("fops open: O_RDWR!");
-        flags = RT_DEVICE_FLAG_INT_RX | RT_DEVICE_FLAG_RDWR;
-        break;
-    default:
-        LOG_E("fops open: unknown mode - %d!", fd->flags & O_ACCMODE);
-        break;
-    }
-
-    if ((fd->flags & O_ACCMODE) != O_WRONLY)
-        rt_device_set_rx_indicate(device, serial_fops_rx_ind);
-    ret = rt_device_open(device, flags);
-    if (ret == RT_EOK) return 0;
+    s = fd->data;
+    ret = _uart_init(s);
 
     return ret;
 }
 
 static int serial_fops_close(struct dfs_fd *fd)
 {
-    rt_device_t device;
+    int ret;
 
-    device = (rt_device_t)fd->data;
-
-    rt_device_set_rx_indicate(device, RT_NULL);
-    rt_device_close(device);
-
-    return 0;
+    return ret;
 }
 
 static int serial_fops_ioctl(struct dfs_fd *fd, int cmd, void *args)
 {
-    rt_device_t device;
+    int ret;
 
-    device = (rt_device_t)fd->data;
-    switch (cmd)
+    return ret;
+}
+
+static int serial_fops_read(struct dfs_fd *file, void *buf, size_t size)
+{
+    int ret;
+    rt_serial_t *s;
+    int nb;
+
+    if (size == 0)
+        return 0;
+
+    s = file->data;
+    nb = file->flags & O_NONBLOCK;
+
+#ifdef SERIAL_THREAD_SAFE
+    if (nb)
     {
-    case FIONREAD:
-        break;
-    case FIONWRITE:
-        break;
+        if (rt_mutex_take(s->rlock, 0) != 0)
+            return -EAGAIN;
     }
-
-    return rt_device_control(device, cmd, args);
-}
-
-static int serial_fops_read(struct dfs_fd *fd, void *buf, size_t count)
-{
-    int size = 0;
-    rt_device_t device;
-
-    device = (rt_device_t)fd->data;
-
-    do
+    else
     {
-        size = rt_device_read(device, -1,  buf, count);
-        if (size <= 0)
-        {
-            if (fd->flags & O_NONBLOCK)
-            {
-                size = -EAGAIN;
-                break;
-            }
+        rt_mutex_take(s->rlock, -1);
+    }
+#endif
 
-            rt_wqueue_wait(&(device->wait_queue), 0, RT_WAITING_FOREVER);
-        }
-    }while (size <= 0);
+    ret = _raw_read(s, nb, (uint8_t*)buf, size);
 
-    return size;
+#ifdef SERIAL_THREAD_SAFE
+    rt_mutex_release(s->rlock);
+#endif
+
+    return ret;
 }
 
-static int serial_fops_write(struct dfs_fd *fd, const void *buf, size_t count)
+static int serial_fops_write(struct dfs_fd *file, const void *buf, size_t size)
 {
-    rt_device_t device;
+    int ret;
+    rt_serial_t *s;
+    int nb;
 
-    device = (rt_device_t)fd->data;
-    return rt_device_write(device, -1, buf, count);
+    if (size == 0)
+        return 0;
+
+    s = file->data;
+    nb = file->flags & O_NONBLOCK;
+
+#ifdef SERIAL_THREAD_SAFE
+    if (nb)
+    {
+        if (rt_mutex_take(s->wlock, 0) != 0)
+            return -EAGAIN;
+    }
+    else
+    {
+        rt_mutex_take(s->wlock, -1);
+    }
+#endif
+
+    ret = _raw_write(s, nb, (const uint8_t*)buf, size);
+
+#ifdef SERIAL_THREAD_SAFE
+    rt_mutex_release(s->wlock);
+#endif
+
+    return ret;
 }
 
 static int serial_fops_poll(struct dfs_fd *fd, struct rt_pollreq *req)
 {
     int mask = 0;
-    int flags = 0;
-    rt_device_t device;
-    struct rt_serial_device *serial;
-
-    device = (rt_device_t)fd->data;
-    RT_ASSERT(device != RT_NULL);
-
-    serial = (struct rt_serial_device *)device;
-
-    /* only support POLLIN */
-    flags = fd->flags & O_ACCMODE;
-    if (flags == O_RDONLY || flags == O_RDWR)
-    {
-        rt_base_t level;
-        struct rt_serial_rx_fifo* rx_fifo;
-
-        rt_poll_add(&(device->wait_queue), req);
-
-        rx_fifo = (struct rt_serial_rx_fifo*) serial->serial_rx;
-
-        level = rt_hw_interrupt_disable();
-        if ((rx_fifo->get_index != rx_fifo->put_index) || (rx_fifo->get_index == rx_fifo->put_index && rx_fifo->is_full == RT_TRUE))
-            mask |= POLLIN;
-        rt_hw_interrupt_enable(level);
-    }
 
     return mask;
 }
@@ -200,7 +289,74 @@ const static struct dfs_file_ops _serial_fops =
     RT_NULL, /* getdents */
     serial_fops_poll,
 };
-#endif
+
+/*
+ * serial register
+ */
+int rt_serial_register(struct rt_serial_device *serial,
+                               const char              *name,
+                               int              flag,
+                               void                    *data)
+{
+    int ret;
+    struct rt_device *device;
+
+    RT_ASSERT(serial != RT_NULL);
+
+    device = &(serial->parent);
+
+    device->type        = RT_Device_Class_Char;
+    device->user_data   = data;
+
+    /* register a character device */
+    ret = rt_device_register(device, name, flag);
+
+    /* set fops */
+    device->fops        = &_serial_fops;
+
+    return ret;
+}
+
+/* ISR for serial interrupt */
+void rt_serial_isr(struct rt_serial_device *s, int event)
+{
+    switch (event & 0xff)
+    {
+    case RT_SERIAL_EVENT_RX_IND:
+    {
+        uint8_t buf[1];
+
+        while (1)
+        {
+            int ch = s->ops->get(s);
+
+            if (ch == -1)
+                break;
+            buf[0] = ch;
+            rt_ringbuffer_put(s->rxrb, buf, 1);
+        }
+
+        rt_wqueue_wakeup(&s->rxwq, (void*)POLLIN);
+    }break;
+    case RT_SERIAL_EVENT_TX_DONE:
+    {
+        uint8_t buf[1];
+
+        if (rt_ringbuffer_get(s->txrb, buf, 1) == 0)
+        {
+            _set_tx_enable(s, 0);
+        }
+        else
+        {
+            s->ops->put(s, buf[0]);
+        }
+
+        rt_wqueue_wakeup(&s->txwq, (void*)POLLOUT);        
+    }break;
+    }
+}
+
+#if 0
 
 /*
  * Serial poll routines
@@ -1084,192 +1240,6 @@ static rt_err_t rt_serial_control(struct rt_device *dev,
     return ret;
 }
 
-#ifdef RT_USING_DEVICE_OPS
-const static struct rt_device_ops serial_ops = 
-{
-    rt_serial_init,
-    rt_serial_open,
-    rt_serial_close,
-    rt_serial_read,
-    rt_serial_write,
-    rt_serial_control
-};
 #endif
 
-/*
- * serial register
- */
-rt_err_t rt_hw_serial_register(struct rt_serial_device *serial,
-                               const char              *name,
-                               rt_uint32_t              flag,
-                               void                    *data)
-{
-    rt_err_t ret;
-    struct rt_device *device;
-    RT_ASSERT(serial != RT_NULL);
-
-    device = &(serial->parent);
-
-    device->type        = RT_Device_Class_Char;
-    device->rx_indicate = RT_NULL;
-    device->tx_complete = RT_NULL;
-
-#ifdef RT_USING_DEVICE_OPS
-    device->ops         = &serial_ops;
-#else
-    device->init        = rt_serial_init;
-    device->open        = rt_serial_open;
-    device->close       = rt_serial_close;
-    device->read        = rt_serial_read;
-    device->write       = rt_serial_write;
-    device->control     = rt_serial_control;
 #endif
-    device->user_data   = data;
-
-    /* register a character device */
-    ret = rt_device_register(device, name, flag);
-
-#if defined(RT_USING_POSIX)
-    /* set fops */
-    device->fops        = &_serial_fops;
-#endif
-
-    return ret;
-}
-
-/* ISR for serial interrupt */
-void rt_hw_serial_isr(struct rt_serial_device *serial, int event)
-{
-    switch (event & 0xff)
-    {
-        case RT_SERIAL_EVENT_RX_IND:
-        {
-            int ch = -1;
-            rt_base_t level;
-            struct rt_serial_rx_fifo* rx_fifo;
-
-            /* interrupt mode receive */
-            rx_fifo = (struct rt_serial_rx_fifo*)serial->serial_rx;
-            RT_ASSERT(rx_fifo != RT_NULL);
-
-            while (1)
-            {
-                ch = serial->ops->getc(serial);
-                if (ch == -1) break;
-
-
-                /* disable interrupt */
-                level = rt_hw_interrupt_disable();
-
-                rx_fifo->buffer[rx_fifo->put_index] = ch;
-                rx_fifo->put_index += 1;
-                if (rx_fifo->put_index >= serial->config.bufsz) rx_fifo->put_index = 0;
-
-                /* if the next position is read index, discard this 'read char' */
-                if (rx_fifo->put_index == rx_fifo->get_index)
-                {
-                    rx_fifo->get_index += 1;
-                    rx_fifo->is_full = RT_TRUE;
-                    if (rx_fifo->get_index >= serial->config.bufsz) rx_fifo->get_index = 0;
-                }
-
-                /* enable interrupt */
-                rt_hw_interrupt_enable(level);
-            }
-
-            /* invoke callback */
-            if (serial->parent.rx_indicate != RT_NULL)
-            {
-                rt_size_t rx_length;
-
-                /* get rx length */
-                level = rt_hw_interrupt_disable();
-                rx_length = (rx_fifo->put_index >= rx_fifo->get_index)? (rx_fifo->put_index - rx_fifo->get_index):
-                    (serial->config.bufsz - (rx_fifo->get_index - rx_fifo->put_index));
-                rt_hw_interrupt_enable(level);
-
-                if (rx_length)
-                {
-                    serial->parent.rx_indicate(&serial->parent, rx_length);
-                }
-            }
-            break;
-        }
-        case RT_SERIAL_EVENT_TX_DONE:
-        {
-            struct rt_serial_tx_fifo* tx_fifo;
-
-            tx_fifo = (struct rt_serial_tx_fifo*)serial->serial_tx;
-            rt_completion_done(&(tx_fifo->completion));
-            break;
-        }
-#ifdef RT_SERIAL_USING_DMA
-        case RT_SERIAL_EVENT_TX_DMADONE:
-        {
-            const void *data_ptr;
-            rt_size_t data_size;
-            const void *last_data_ptr;
-            struct rt_serial_tx_dma *tx_dma;
-
-            tx_dma = (struct rt_serial_tx_dma*) serial->serial_tx;
-
-            rt_data_queue_pop(&(tx_dma->data_queue), &last_data_ptr, &data_size, 0);
-            if (rt_data_queue_peak(&(tx_dma->data_queue), &data_ptr, &data_size) == RT_EOK)
-            {
-                /* transmit next data node */
-                tx_dma->activated = RT_TRUE;
-                serial->ops->dma_transmit(serial, (rt_uint8_t *)data_ptr, data_size, RT_SERIAL_DMA_TX);
-            }
-            else
-            {
-                tx_dma->activated = RT_FALSE;
-            }
-
-            /* invoke callback */
-            if (serial->parent.tx_complete != RT_NULL)
-            {
-                serial->parent.tx_complete(&serial->parent, (void*)last_data_ptr);
-            }
-            break;
-        }
-        case RT_SERIAL_EVENT_RX_DMADONE:
-        {
-            int length;
-            rt_base_t level;
-
-            /* get DMA rx length */
-            length = (event & (~0xff)) >> 8;
-
-            if (serial->config.bufsz == 0)
-            {
-                struct rt_serial_rx_dma* rx_dma;
-
-                rx_dma = (struct rt_serial_rx_dma*) serial->serial_rx;
-                RT_ASSERT(rx_dma != RT_NULL);
-
-                RT_ASSERT(serial->parent.rx_indicate != RT_NULL);
-                serial->parent.rx_indicate(&(serial->parent), length);
-                rx_dma->activated = RT_FALSE;
-            }
-            else
-            {
-                /* disable interrupt */
-                level = rt_hw_interrupt_disable();
-                /* update fifo put index */
-                rt_dma_recv_update_put_index(serial, length);
-                /* calculate received total length */
-                length = rt_dma_calc_recved_len(serial);
-                /* enable interrupt */
-                rt_hw_interrupt_enable(level);
-                /* invoke callback */
-                if (serial->parent.rx_indicate != RT_NULL)
-                {
-                    serial->parent.rx_indicate(&(serial->parent), length);
-                }
-            }
-            break;
-        }
-#endif /* RT_SERIAL_USING_DMA */
-    }
-}
-

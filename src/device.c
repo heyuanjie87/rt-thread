@@ -63,7 +63,6 @@ rt_err_t rt_device_register(rt_device_t dev,
 
 #if defined(RT_USING_POSIX)
     dev->fops = RT_NULL;
-    rt_wqueue_init(&(dev->wait_queue));
 #endif
 
     return RT_EOK;
