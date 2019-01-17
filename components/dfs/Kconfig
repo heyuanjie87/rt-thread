@@ -103,6 +103,10 @@ if RT_USING_DFS
         endmenu
     endif
 
+    config RT_USING_DFS_PIPEFS
+        bool "Using pipefs for pipe"
+        default n
+
     config RT_USING_DFS_DEVFS
         bool "Using devfs for device objects"
         default y
