@@ -19,7 +19,6 @@
 #include "ipc/dataqueue.h"
 #include "ipc/workqueue.h"
 #include "ipc/waitqueue.h"
-#include "ipc/pipe.h"
 #include "ipc/poll.h"
 #include "ipc/ringblk_buf.h"
 
