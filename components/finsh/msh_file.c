@@ -10,12 +10,13 @@
 
 #include <rtthread.h>
 
-#if defined(FINSH_USING_MSH) && defined(RT_USING_DFS)
+#if defined(RT_USING_FINSH) && defined(RT_USING_DFS)
 
 #include <finsh.h>
 #include "msh.h"
 #include <dfs_posix.h>
 
+#ifdef MSH_EXEC_SCRIPT_ENABLE
 static int msh_readline(int fd, char *line_buf, int size)
 {
     char ch;
@@ -136,6 +137,129 @@ int msh_exec_script(const char *cmd_line, int size)
 
     return ret;
 }
+#endif
+
+#ifdef MSH_AUTO_PATH_ENABLE
+void msh_auto_complete_path(char *path)
+{
+    DIR *dir = RT_NULL;
+    struct dirent *dirent = RT_NULL;
+    char *full_path, *ptr, *index;
+
+    if (!path)
+        return;
+
+    full_path = (char *)rt_malloc(256);
+    if (full_path == RT_NULL) return; /* out of memory */
+
+    if (*path != '/')
+    {
+        getcwd(full_path, 256);
+        if (full_path[rt_strlen(full_path) - 1]  != '/')
+            strcat(full_path, "/");
+    }
+    else *full_path = '\0';
+
+    index = RT_NULL;
+    ptr = path;
+    for (;;)
+    {
+        if (*ptr == '/') index = ptr + 1;
+        if (!*ptr) break;
+
+        ptr ++;
+    }
+    if (index == RT_NULL) index = path;
+
+    if (index != RT_NULL)
+    {
+        char *dest = index;
+
+        /* fill the parent path */
+        ptr = full_path;
+        while (*ptr) ptr ++;
+
+        for (index = path; index != dest;)
+            *ptr++ = *index++;
+        *ptr = '\0';
+
+        dir = opendir(full_path);
+        if (dir == RT_NULL) /* open directory failed! */
+        {
+            rt_free(full_path);
+            return;
+        }
+
+        /* restore the index position */
+        index = dest;
+    }
+
+    /* auto complete the file or directory name */
+    if (*index == '\0') /* display all of files and directories */
+    {
+        for (;;)
+        {
+            dirent = readdir(dir);
+            if (dirent == RT_NULL) break;
+
+            printf("%s\n", dirent->d_name);
+        }
+    }
+    else
+    {
+        int length, min_length;
+
+        min_length = 0;
+        for (;;)
+        {
+            dirent = readdir(dir);
+            if (dirent == RT_NULL) break;
+
+            /* matched the prefix string */
+            if (strncmp(index, dirent->d_name, rt_strlen(index)) == 0)
+            {
+                if (min_length == 0)
+                {
+                    min_length = rt_strlen(dirent->d_name);
+                    /* save dirent name */
+                    strcpy(full_path, dirent->d_name);
+                }
+
+                length = str_common(dirent->d_name, full_path);
+
+                if (length < min_length)
+                {
+                    min_length = length;
+                }
+            }
+        }
+
+        if (min_length)
+        {
+            if (min_length < rt_strlen(full_path))
+            {
+                /* list the candidate */
+                rewinddir(dir);
+
+                for (;;)
+                {
+                    dirent = readdir(dir);
+                    if (dirent == RT_NULL) break;
+
+                    if (strncmp(index, dirent->d_name, rt_strlen(index)) == 0)
+                        printf("%s\n", dirent->d_name);
+                }
+            }
+
+            length = index - path;
+            memcpy(index, full_path, min_length);
+            path[length + min_length] = '\0';
+        }
+    }
+
+    closedir(dir);
+    rt_free(full_path);
+}
+#endif
 
 #endif /* defined(FINSH_USING_MSH) && defined(RT_USING_DFS) */
-

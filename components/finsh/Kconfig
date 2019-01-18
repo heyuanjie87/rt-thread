@@ -25,10 +25,6 @@ config FINSH_USING_SYMTAB
 config FINSH_USING_DESCRIPTION
     bool "Keeping description in symbol table"
     default y
-
-config FINSH_ECHO_DISABLE_DEFAULT
-    bool "Disable the echo mode in default"
-    default n
     
 config FINSH_THREAD_PRIORITY
     int "The priority level value of finsh thread"
@@ -64,12 +60,8 @@ config FINSH_USING_MSH
 
 if FINSH_USING_MSH
 config FINSH_USING_MSH_DEFAULT
-    bool "Using module shell in default"
+    bool "Instantiate  module shell in default"
     default y
-
-config FINSH_USING_MSH_ONLY
-    bool "Only using module shell"
-    default n
 
 config FINSH_ARG_MAX
     int "The command arg num for shell"

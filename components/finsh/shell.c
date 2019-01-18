@@ -24,26 +24,13 @@
 
 #include "finsh.h"
 #include "shell.h"
-
-#ifdef FINSH_USING_MSH
 #include "msh.h"
-#endif
 
 #include <stdio.h> /* for putchar */
-
-/* finsh thread */
-#ifndef RT_USING_HEAP
-static struct rt_thread finsh_thread;
-ALIGN(RT_ALIGN_SIZE)
-static char finsh_thread_stack[FINSH_THREAD_STACK_SIZE];
-struct finsh_shell _shell;
-#endif
 
 #ifdef FINSH_USING_SYMTAB
 struct finsh_syscall *_syscall_table_begin  = NULL;
 struct finsh_syscall *_syscall_table_end    = NULL;
-struct finsh_sysvar *_sysvar_table_begin    = NULL;
-struct finsh_sysvar *_sysvar_table_end      = NULL;
 #endif
 
 static void _symtab_init(void);
@@ -447,23 +434,14 @@ void finsh_system_function_init(const void *begin, const void *end)
     _syscall_table_end = (struct finsh_syscall *) end;
 }
 
-void finsh_system_var_init(const void *begin, const void *end)
-{
-    _sysvar_table_begin = (struct finsh_sysvar *) begin;
-    _sysvar_table_end = (struct finsh_sysvar *) end;
-}
-
 #if defined(__ICCARM__) || defined(__ICCRX__)               /* for IAR compiler */
 #ifdef FINSH_USING_SYMTAB
 #pragma section="FSymTab"
-#pragma section="VSymTab"
 #endif
 #elif defined(__ADSPBLACKFIN__) /* for VisaulDSP++ Compiler*/
 #ifdef FINSH_USING_SYMTAB
 extern "asm" int __fsymtab_start;
 extern "asm" int __fsymtab_end;
-extern "asm" int __vsymtab_start;
-extern "asm" int __vsymtab_end;
 #endif
 #elif defined(_MSC_VER)
 #pragma section("FSymTab$a", read)
@@ -493,8 +471,7 @@ static void _symtab_init(void)
 #if defined(__CC_ARM) || defined(__CLANG_ARM)          /* ARM C Compiler */
     extern const int FSymTab$$Base;
     extern const int FSymTab$$Limit;
-    extern const int VSymTab$$Base;
-    extern const int VSymTab$$Limit;
+
     finsh_system_function_init(&FSymTab$$Base, &FSymTab$$Limit);
 
 #elif defined (__ICCARM__) || defined(__ICCRX__)      /* for IAR Compiler */
@@ -505,8 +482,7 @@ static void _symtab_init(void)
     /* GNU GCC Compiler and TI CCS */
     extern const int __fsymtab_start;
     extern const int __fsymtab_end;
-    extern const int __vsymtab_start;
-    extern const int __vsymtab_end;
+
     finsh_system_function_init(&__fsymtab_start, &__fsymtab_end);
 
 #elif defined(__ADSPBLACKFIN__) /* for VisualDSP++ Compiler */
@@ -529,4 +505,3 @@ static void _symtab_init(void)
 }
 
 #endif /* RT_USING_FINSH */
-
