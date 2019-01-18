@@ -103,10 +103,13 @@ static int pipe_fops_close(struct dfs_fd *fd)
     }
 
     if (pipe->ref_count == 1)
-        rt_pipe_delete(pipe);
+        rt_pipe_remove(pipe);
     pipe->ref_count --;
 
     pipe_unlock(pipe);
+
+    if (pipe->ref_count == 0)
+        rt_pipe_delete(pipe);
 
     return 0;
 }
@@ -324,13 +327,14 @@ static int dfs_pipefs_unlink(struct dfs_filesystem *fs, const char *path)
 {
     rt_pipe_t *pipe;
     const char *name;
-
+    //todo lock
     name = path + rt_strlen(fs->path);
     pipe = rt_pipe_find(name);
     if (!pipe)
         return -ENODEV;
     if (pipe->ref_count)
         return -EBUSY;
+    rt_pipe_remove(pipe);
     rt_pipe_delete(pipe);
 
     return 0;

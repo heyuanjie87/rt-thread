@@ -26,9 +26,13 @@ rt_pipe_t *rt_pipe_create(const char *name, int bufsz)
     return pipe;
 }
 
-int rt_pipe_delete(rt_pipe_t *pipe)
+void rt_pipe_remove(rt_pipe_t *pipe)
 {
     rt_list_remove(&(pipe->parent.list));
+}
+
+int rt_pipe_delete(rt_pipe_t *pipe)
+{
     rt_mutex_detach(&(pipe->lock));
     rt_ringbuffer_destroy(pipe->fifo);
     rt_free(pipe);
