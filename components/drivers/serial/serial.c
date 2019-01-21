@@ -77,6 +77,9 @@ static int _uart_init(rt_serial_t *s)
     s->config.parity = UART_PARITY_NONE;
     s->config.stop_bits = STOP_BITS_1;
     s->tx_started = 0;
+#ifdef RT_USING_POSIX_TERMIOS
+    s->config.c_oflag = OPOST | ONLCR;
+#endif
 
     if (s->ops->configure(s, &s->config) == 0)
     {
@@ -178,6 +181,16 @@ static int _raw_write(rt_serial_t *s, int nb, const uint8_t *buf, size_t size)
     return (dbuf == buf) ? ret : (dbuf - buf);
 }
 
+#ifdef RT_USING_POSIX_TERMIOS
+#define O_OPOST(tty)	((tty)->config.c_oflag & OPOST)
+#define O_ONLCR(tty)	((tty)->config.c_oflag & ONLCR)
+
+static int _post_write(rt_serial_t *s, int nb, const uint8_t *buf, size_t size)
+{
+    return 0;
+}
+#endif
+
 /* fops for serial */
 static int serial_fops_open(struct dfs_fd *fd)
 {
@@ -261,7 +274,12 @@ static int serial_fops_write(struct dfs_fd *file, const void *buf, size_t size)
     }
 #endif
 
-    ret = _raw_write(s, nb, (const uint8_t*)buf, size);
+#ifdef RT_USING_POSIX_TERMIOS
+    if (O_POST(s))
+        ret = _post_write(s, nb, (const uint8_t*)buf, size);
+    else
+#endif
+        ret = _raw_write(s, nb, (const uint8_t*)buf, size);
 
 #ifdef SERIAL_THREAD_SAFE
     rt_mutex_release(s->wlock);

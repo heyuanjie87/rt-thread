@@ -77,13 +77,11 @@ struct serial_configure
 {
     uint32_t baud_rate;
 
-    uint32_t data_bits               :4;
-    uint32_t stop_bits               :2;
-    uint32_t parity                  :2;
-    uint32_t bit_order               :1;
-    uint32_t invert                  :1;
-    uint32_t bufsz                   :16;
-    uint32_t reserved                :6;
+    uint8_t data_bits :4;
+    uint8_t stop_bits :2;
+    uint8_t parity    :2;
+    uint8_t c_cc[3];
+    uint16_t c_oflag;
 };
 
 struct rt_serial_device
