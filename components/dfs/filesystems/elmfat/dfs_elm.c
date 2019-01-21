@@ -95,13 +95,18 @@ static int get_disk(rt_device_t id)
     return -1;
 }
 
-int dfs_elm_mount(struct dfs_filesystem *fs, unsigned long rwflag, const void *data)
+static int dfs_elm_mount(struct dfs_filesystem *fs, unsigned long rwflag, const void *data)
 {
     FATFS *fat;
     FRESULT result;
     int index;
     struct rt_device_blk_geometry geometry;
     char logic_nbr[2] = {'0',':'};
+
+    if (!fs->dev_id)
+        return -ENODEV;
+    if (rt_device_open(fs->dev_id, RT_DEVICE_OFLAG_RDWR) != 0)
+        return -EIO;
 
     /* get an empty position */
     index = get_disk(RT_NULL);
@@ -163,7 +168,7 @@ __err:
     return elm_result_to_dfs(result);
 }
 
-int dfs_elm_unmount(struct dfs_filesystem *fs)
+static int dfs_elm_unmount(struct dfs_filesystem *fs)
 {
     FATFS *fat;
     FRESULT result;
@@ -191,7 +196,7 @@ int dfs_elm_unmount(struct dfs_filesystem *fs)
     return RT_EOK;
 }
 
-int dfs_elm_mkfs(rt_device_t dev_id)
+static int dfs_elm_mkfs(rt_device_t dev_id)
 {
 #define FSM_STATUS_INIT            0
 #define FSM_STATUS_USE_TEMP_DRIVER 1
@@ -287,7 +292,7 @@ int dfs_elm_mkfs(rt_device_t dev_id)
     return RT_EOK;
 }
 
-int dfs_elm_statfs(struct dfs_filesystem *fs, struct statfs *buf)
+static int dfs_elm_statfs(struct dfs_filesystem *fs, struct statfs *buf)
 {
     FATFS *f;
     FRESULT res;
@@ -353,7 +358,7 @@ static void free_path(const char *p)
 #endif
 }
 
-int dfs_elm_open(struct dfs_fd *file)
+static int dfs_elm_open(struct dfs_fd *file)
 {
     FIL *fd;
     BYTE mode;
@@ -455,7 +460,7 @@ int dfs_elm_open(struct dfs_fd *file)
     return RT_EOK;
 }
 
-int dfs_elm_close(struct dfs_fd *file)
+static int dfs_elm_close(struct dfs_fd *file)
 {
     FRESULT result;
 
@@ -487,12 +492,12 @@ int dfs_elm_close(struct dfs_fd *file)
     return elm_result_to_dfs(result);
 }
 
-int dfs_elm_ioctl(struct dfs_fd *file, int cmd, void *args)
+static int dfs_elm_ioctl(struct dfs_fd *file, int cmd, void *args)
 {
     return -ENOSYS;
 }
 
-int dfs_elm_read(struct dfs_fd *file, void *buf, size_t len)
+static int dfs_elm_read(struct dfs_fd *file, void *buf, size_t len)
 {
     FIL *fd;
     FRESULT result;
@@ -515,7 +520,7 @@ int dfs_elm_read(struct dfs_fd *file, void *buf, size_t len)
     return elm_result_to_dfs(result);
 }
 
-int dfs_elm_write(struct dfs_fd *file, const void *buf, size_t len)
+static int dfs_elm_write(struct dfs_fd *file, const void *buf, size_t len)
 {
     FIL *fd;
     FRESULT result;
@@ -539,7 +544,7 @@ int dfs_elm_write(struct dfs_fd *file, const void *buf, size_t len)
     return elm_result_to_dfs(result);
 }
 
-int dfs_elm_flush(struct dfs_fd *file)
+static int dfs_elm_flush(struct dfs_fd *file)
 {
     FIL *fd;
     FRESULT result;
@@ -551,7 +556,7 @@ int dfs_elm_flush(struct dfs_fd *file)
     return elm_result_to_dfs(result);
 }
 
-int dfs_elm_lseek(struct dfs_fd *file, off_t offset, int whence)
+static int dfs_elm_lseek(struct dfs_fd *file, off_t offset, int whence)
 {
     FRESULT result = FR_OK;
     if (file->type == FT_REGULAR)
@@ -586,7 +591,7 @@ int dfs_elm_lseek(struct dfs_fd *file, off_t offset, int whence)
     return elm_result_to_dfs(result);
 }
 
-int dfs_elm_getdents(struct dfs_fd *file, struct dirent *dirp, uint32_t count)
+static int dfs_elm_getdents(struct dfs_fd *file, struct dirent *dirp, uint32_t count)
 {
     DIR *dir;
     FILINFO fno;
@@ -640,7 +645,7 @@ int dfs_elm_getdents(struct dfs_fd *file, struct dirent *dirp, uint32_t count)
     return index * sizeof(struct dirent);
 }
 
-int dfs_elm_unlink(struct dfs_filesystem *fs, const char *path)
+static int dfs_elm_unlink(struct dfs_filesystem *fs, const char *path)
 {
     FRESULT result;
     const char *drivers_fn;
@@ -656,7 +661,7 @@ int dfs_elm_unlink(struct dfs_filesystem *fs, const char *path)
     return elm_result_to_dfs(result);
 }
 
-int dfs_elm_rename(struct dfs_filesystem *fs, const char *oldpath, const char *newpath)
+static int dfs_elm_rename(struct dfs_filesystem *fs, const char *oldpath, const char *newpath)
 {
     FRESULT result;
     const char *drivers_oldfn, *drivers_newfn;
@@ -679,7 +684,7 @@ int dfs_elm_rename(struct dfs_filesystem *fs, const char *oldpath, const char *n
     return elm_result_to_dfs(result);
 }
 
-int dfs_elm_stat(struct dfs_filesystem *fs, const char *path, struct stat *st)
+static int dfs_elm_stat(struct dfs_filesystem *fs, const char *path, struct stat *st)
 {
     FILINFO file_info;
     FRESULT result;
