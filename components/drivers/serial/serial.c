@@ -29,8 +29,8 @@
 #include <rtdevice.h>
 
 // #define DEBUG_ENABLE
-#define DEBUG_LEVEL         DBG_LOG
-#define DBG_SECTION_NAME    "UART"
+#define DEBUG_LEVEL DBG_LOG
+#define DBG_SECTION_NAME "UART"
 #define DEBUG_COLOR
 #include <rtdbg.h>
 
@@ -43,7 +43,7 @@
 #endif
 
 #ifndef RT_SERIAL_RB_BUFSZ
-#define RT_SERIAL_RB_BUFSZ              32
+#define RT_SERIAL_RB_BUFSZ 32
 #endif
 
 static int _uart_init(rt_serial_t *s)
@@ -52,7 +52,7 @@ static int _uart_init(rt_serial_t *s)
 
     if (s->parent.ref_count)
     {
-        s->parent.ref_count ++;
+        s->parent.ref_count++;
         return 0;
     }
     if (!s->ops->init)
@@ -63,7 +63,7 @@ static int _uart_init(rt_serial_t *s)
     if (!s->rxrb || !s->txrb)
     {
         ret = -ENOMEM;
-        goto _free; 
+        goto _free;
     }
 
     if (s->ops->init(s) != 0)
@@ -85,7 +85,7 @@ static int _uart_init(rt_serial_t *s)
     {
         if (s->ops->control(s, UART_CMD_SET_INTRX, 1) == 0)
         {
-            s->parent.ref_count ++;
+            s->parent.ref_count++;
             return 0;
         }
     }
@@ -117,13 +117,13 @@ static int _raw_read(rt_serial_t *s, int nb, uint8_t *buf, size_t size)
             if (ret)
                 break;
 
-            rt_wqueue_wait(&s->rxwq, 0, -1);            
+            rt_wqueue_wait(&s->rxwq, 0, -1);
         }
         else
         {
             size -= c;
             buf += c;
-            ret += c;            
+            ret += c;
         }
     }
 
@@ -150,7 +150,7 @@ static int _set_tx_enable(rt_serial_t *s, int en)
 
 static int _raw_write(rt_serial_t *s, int nb, const uint8_t *buf, size_t size)
 {
-    int ret;
+    int ret = -EAGAIN;
     int c;
     const uint8_t *dbuf;
 
@@ -171,22 +171,152 @@ static int _raw_write(rt_serial_t *s, int nb, const uint8_t *buf, size_t size)
         if (!size)
             break;
         if (nb)
-        {
-            ret = -EAGAIN;
             break;
-        }
-        rt_wqueue_wait(&s->txwq, 0, -1); 
+
+        rt_wqueue_wait(&s->txwq, 0, -1);
     }
 
     return (dbuf == buf) ? ret : (dbuf - buf);
 }
 
 #ifdef RT_USING_POSIX_TERMIOS
-#define O_OPOST(tty)	((tty)->config.c_oflag & OPOST)
-#define O_ONLCR(tty)	((tty)->config.c_oflag & ONLCR)
+#define O_OPOST(tty) ((tty)->config.c_oflag & OPOST)
+#define O_ONLCR(tty) ((tty)->config.c_oflag & ONLCR)
+
+static int do_output_char(rt_serial_t *serial, unsigned char c, int space)
+{
+    int	spaces;
+
+    if (!space)
+        return -1;
+
+    switch (c)
+    {
+    case '\n':
+        if (O_ONLCR(serial))
+        {
+            if (space < 2)
+                return -1;
+
+            rt_ringbuffer_put(serial->txrb, "\r\n", 2);
+            return 2;
+        }
+        break;
+    default:
+        break;
+    }
+
+    return 1;
+}
+
+static int process_output_char(rt_serial_t *serial, unsigned char c)
+{
+    int	space, retval;
+
+    space = rt_ringbuffer_space_len(serial->txrb);
+    retval = do_output_char(serial, c, space);
+
+    if (retval < 0)
+        return -1;
+    else
+        return 0;
+}
+
+static int process_output_block(rt_serial_t *serial, const unsigned char *buf, unsigned int nr)
+{
+    int space;
+    int i;
+    const unsigned char *cp;
+
+    space = rt_ringbuffer_space_len(serial->txrb);
+    if (!space)
+    {
+        return -1;
+    }
+
+    if (nr > space)
+        nr = space;
+
+    for (i = 0, cp = buf; i < nr; i++, cp++)
+    {
+        unsigned char c = *cp;
+
+        switch (c)
+        {
+        case '\n':
+            if (O_ONLCR(serial))
+                goto break_out;
+            break;
+        case '\r':
+            break;
+        case '\t':
+            goto break_out;
+        case '\b':
+            break;
+        default:
+            break;
+        }
+    }
+
+break_out:
+    i = rt_ringbuffer_put(serial->txrb, buf, i);
+
+    return i;
+}
 
 static int _post_write(rt_serial_t *s, int nb, const uint8_t *buf, size_t size)
 {
+    int ret = -EAGAIN;
+    int c;
+    const uint8_t *dbuf;
+
+    dbuf = buf;
+    while (1)
+    {
+        while (size > 0)
+        {
+            int num;
+
+            num = process_output_block(s, dbuf, size);
+            if (num < 0)
+                break;
+
+            dbuf += num;
+            size -= num;
+            if (size == 0)
+                break;
+
+            c = *dbuf;
+            if (process_output_char(s, c) < 0)
+                break;
+            dbuf++;
+            size--;
+        }
+
+        if (_set_tx_enable(s, 1) != 0)
+            return -EIO;
+
+        if (!size)
+            break;
+        if (nb)
+            break;
+
+        rt_wqueue_wait(&s->txwq, 0, -1);        
+    }
+
+break_out:
+    return (dbuf == buf) ? ret : (dbuf - buf);
+}
+
+static int _get_termios(rt_serial_t *s, struct termios *t)
+{
+    return 0;
+}
+
+static int _set_termios(rt_serial_t *s, struct termios *t)
+{
+    s->config.c_oflag = t->c_oflag;
+
     return 0;
 }
 #endif
@@ -213,6 +343,27 @@ static int serial_fops_close(struct dfs_fd *fd)
 static int serial_fops_ioctl(struct dfs_fd *fd, int cmd, void *args)
 {
     int ret;
+    rt_serial_t *s;
+
+    s = fd->data;
+
+    switch (cmd & 0xFFFF)
+    {
+#ifdef RT_USING_POSIX_TERMIOS
+    case TCGETS:
+    {
+        ret = _get_termios(s, args);
+    }break;
+    case TCSETS:
+    {
+        ret = _set_termios(s, args);
+    }break;
+#endif
+    default:
+    {
+        ret = s->ops->control(s, cmd, (long)args);
+    }break;
+    }
 
     return ret;
 }
@@ -241,7 +392,7 @@ static int serial_fops_read(struct dfs_fd *file, void *buf, size_t size)
     }
 #endif
 
-    ret = _raw_read(s, nb, (uint8_t*)buf, size);
+    ret = _raw_read(s, nb, (uint8_t *)buf, size);
 
 #ifdef SERIAL_THREAD_SAFE
     rt_mutex_release(s->rlock);
@@ -275,11 +426,13 @@ static int serial_fops_write(struct dfs_fd *file, const void *buf, size_t size)
 #endif
 
 #ifdef RT_USING_POSIX_TERMIOS
-    if (O_POST(s))
-        ret = _post_write(s, nb, (const uint8_t*)buf, size);
+    if (O_OPOST(s))
+        ret = _post_write(s, nb, (const uint8_t *)buf, size);
     else
+        ret = _raw_write(s, nb, (const uint8_t *)buf, size);
+#else
+    ret = _raw_write(s, nb, (const uint8_t *)buf, size);
 #endif
-        ret = _raw_write(s, nb, (const uint8_t*)buf, size);
 
 #ifdef SERIAL_THREAD_SAFE
     rt_mutex_release(s->wlock);
@@ -312,9 +465,9 @@ const static struct dfs_file_ops _serial_fops =
  * serial register
  */
 int rt_serial_register(struct rt_serial_device *serial,
-                               const char              *name,
-                               int              flag,
-                               void                    *data)
+                       const char *name,
+                       int flag,
+                       void *data)
 {
     int ret;
     struct rt_device *device;
@@ -323,14 +476,14 @@ int rt_serial_register(struct rt_serial_device *serial,
 
     device = &(serial->parent);
 
-    device->type        = RT_Device_Class_Char;
-    device->user_data   = data;
+    device->type = RT_Device_Class_Char;
+    device->user_data = data;
 
     /* register a character device */
     ret = rt_device_register(device, name, flag);
 
     /* set fops */
-    device->fops        = &_serial_fops;
+    device->fops = &_serial_fops;
 
     return ret;
 }
@@ -354,8 +507,9 @@ void rt_serial_isr(struct rt_serial_device *s, int event)
             rt_ringbuffer_put(s->rxrb, buf, 1);
         }
 
-        rt_wqueue_wakeup(&s->rxwq, (void*)POLLIN);
-    }break;
+        rt_wqueue_wakeup(&s->rxwq, (void *)POLLIN);
+    }
+    break;
     case RT_SERIAL_EVENT_TX_DONE:
     {
         uint8_t buf[1];
@@ -369,8 +523,9 @@ void rt_serial_isr(struct rt_serial_device *s, int event)
             s->ops->put(s, buf[0]);
         }
 
-        rt_wqueue_wakeup(&s->txwq, (void*)POLLOUT);        
-    }break;
+        rt_wqueue_wakeup(&s->txwq, (void *)POLLOUT);
+    }
+    break;
     }
 }
 
