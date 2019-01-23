@@ -5,6 +5,7 @@ cwd = GetCurrentDir()
 src = Split("""
 core/core.c
 core/usbdevice.c
+core/udc.c
 """)
 
 if GetDepend('RT_USB_DEVICE_CDC'):

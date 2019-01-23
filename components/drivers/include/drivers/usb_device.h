@@ -61,6 +61,8 @@ extern "C" {
 struct ufunction;
 struct udevice;
 struct uendpoint;
+struct uio_request;
+struct udcd;
 
 typedef enum 
 {
@@ -74,18 +76,20 @@ typedef enum
 
 struct udcd_ops
 {
-    rt_err_t (*set_address)(rt_uint8_t address);
+    rt_err_t (*set_address)(struct udcd *d, rt_uint8_t address);
     rt_err_t (*set_config)(rt_uint8_t address);
-    rt_err_t (*ep_set_stall)(rt_uint8_t address);
-    rt_err_t (*ep_clear_stall)(rt_uint8_t address);
-    rt_err_t (*ep_enable)(struct uendpoint* ep);
-    rt_err_t (*ep_disable)(struct uendpoint* ep);
-    rt_size_t (*ep_read_prepare)(rt_uint8_t address, void *buffer, rt_size_t size);
-    rt_size_t (*ep_read)(rt_uint8_t address, void *buffer);
-    rt_size_t (*ep_write)(rt_uint8_t address, void *buffer, rt_size_t size);
+    rt_err_t (*ep_set_stall)(struct udcd *d, rt_uint8_t address);
+    rt_err_t (*ep_clear_stall)(struct udcd *d, rt_uint8_t address);
+    rt_err_t (*ep_enable)(struct udcd *d, struct uendpoint* ep);
+    rt_err_t (*ep_disable)(struct udcd *d, struct uendpoint* ep);
+    rt_size_t (*ep_read_prepare)(struct udcd *d, rt_uint8_t address, void *buffer, rt_size_t size);
+    rt_size_t (*ep_read)(struct udcd *d, rt_uint8_t address, void *buffer);
+    rt_size_t (*ep_write)(struct udcd *d, rt_uint8_t address, void *buffer, rt_size_t size);
     rt_err_t (*ep0_send_status)(void);
     rt_err_t (*suspend)(void);
-    rt_err_t (*wakeup)(void);    
+    rt_err_t (*wakeup)(void);
+    int (*ep_queue)(struct udcd *d, struct uendpoint* ep, struct uio_request *req,
+                    int op);  /* op:1 enqueue, 0 dequeue */ 
 };
 
 struct ep_id
@@ -106,6 +110,7 @@ struct uio_request
     rt_uint8_t* buffer;
     rt_size_t size;
     rt_size_t remain_size;
+    rt_size_t actual;
 };
 typedef struct uio_request* uio_request_t;
 
@@ -309,14 +314,7 @@ rt_err_t rt_usbd_connect_handler(udcd_t dcd);
 rt_err_t rt_usbd_disconnect_handler(udcd_t dcd);
 rt_err_t rt_usbd_sof_handler(udcd_t dcd);
 
-rt_inline rt_err_t dcd_set_address(udcd_t dcd, rt_uint8_t address)
-{
-    RT_ASSERT(dcd != RT_NULL);
-    RT_ASSERT(dcd->ops != RT_NULL);
-    RT_ASSERT(dcd->ops->set_address != RT_NULL);
-
-    return dcd->ops->set_address(address);
-}
+int dcd_set_address(udcd_t dcd, rt_uint8_t address);
 
 rt_inline rt_err_t dcd_set_config(udcd_t dcd, rt_uint8_t address)
 {
@@ -327,64 +325,16 @@ rt_inline rt_err_t dcd_set_config(udcd_t dcd, rt_uint8_t address)
     return dcd->ops->set_config(address);
 }
 
-rt_inline rt_err_t dcd_ep_enable(udcd_t dcd, uep_t ep)
-{
-    RT_ASSERT(dcd != RT_NULL);
-    RT_ASSERT(dcd->ops != RT_NULL);
-    RT_ASSERT(dcd->ops->ep_enable != RT_NULL);
+int dcd_ep_enable(udcd_t dcd, uep_t ep);
+int dcd_ep_disable(udcd_t dcd, uep_t ep);
 
-    return dcd->ops->ep_enable(ep);
-}
+int dcd_ep_read_prepare(udcd_t dcd, rt_uint8_t address, void *buffer,
+                               rt_size_t size);
 
-rt_inline rt_err_t dcd_ep_disable(udcd_t dcd, uep_t ep)
-{
-    RT_ASSERT(dcd != RT_NULL);
-    RT_ASSERT(dcd->ops != RT_NULL);
-    RT_ASSERT(dcd->ops->ep_disable != RT_NULL);
+int dcd_ep_read(udcd_t dcd, rt_uint8_t address, void *buffer);
 
-    return dcd->ops->ep_disable(ep);
-}
-
-rt_inline rt_size_t dcd_ep_read_prepare(udcd_t dcd, rt_uint8_t address, void *buffer,
-                               rt_size_t size)
-{
-    RT_ASSERT(dcd != RT_NULL);
-    RT_ASSERT(dcd->ops != RT_NULL);
-
-    if(dcd->ops->ep_read_prepare != RT_NULL)
-    {
-        return dcd->ops->ep_read_prepare(address, buffer, size);
-    }
-    else
-    {
-        return 0;
-    }
-}
-
-rt_inline rt_size_t dcd_ep_read(udcd_t dcd, rt_uint8_t address, void *buffer)
-{
-    RT_ASSERT(dcd != RT_NULL);
-    RT_ASSERT(dcd->ops != RT_NULL);
-
-    if(dcd->ops->ep_read != RT_NULL)
-    {
-        return dcd->ops->ep_read(address, buffer);
-    }
-    else
-    {
-        return 0;
-    }
-}
-
-rt_inline rt_size_t dcd_ep_write(udcd_t dcd, rt_uint8_t address, void *buffer,
-                                 rt_size_t size)
-{
-    RT_ASSERT(dcd != RT_NULL);
-    RT_ASSERT(dcd->ops != RT_NULL);
-    RT_ASSERT(dcd->ops->ep_write != RT_NULL);
-
-    return dcd->ops->ep_write(address, buffer, size);
-}
+int dcd_ep_write(udcd_t dcd, rt_uint8_t address, void *buffer,
+                                 rt_size_t size);
 
 rt_inline rt_err_t dcd_ep0_send_status(udcd_t dcd)
 {
@@ -395,23 +345,10 @@ rt_inline rt_err_t dcd_ep0_send_status(udcd_t dcd)
     return dcd->ops->ep0_send_status();
 }
 
-rt_inline rt_err_t dcd_ep_set_stall(udcd_t dcd, rt_uint8_t address)
-{    
-    RT_ASSERT(dcd != RT_NULL);
-    RT_ASSERT(dcd->ops != RT_NULL);
-    RT_ASSERT(dcd->ops->ep_set_stall != RT_NULL);
+int dcd_ep_set_stall(udcd_t dcd, rt_uint8_t address);
 
-    return dcd->ops->ep_set_stall(address);
-}
+int dcd_ep_clear_stall(udcd_t dcd, rt_uint8_t address);
 
-rt_inline rt_err_t dcd_ep_clear_stall(udcd_t dcd, rt_uint8_t address)
-{
-    RT_ASSERT(dcd != RT_NULL);
-    RT_ASSERT(dcd->ops != RT_NULL);
-    RT_ASSERT(dcd->ops->ep_clear_stall != RT_NULL);
-
-    return dcd->ops->ep_clear_stall(address);
-}
 rt_inline void usbd_os_proerty_descriptor_send(ufunction_t func, ureq_t setup, usb_os_proerty_t usb_os_proerty, rt_uint8_t number_of_proerty)
 {
     struct usb_os_property_header header;
