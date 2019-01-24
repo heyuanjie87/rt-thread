@@ -111,6 +111,7 @@ struct uio_request
     rt_size_t size;
     rt_size_t remain_size;
     rt_size_t actual;
+    rt_size_t bufsz;
 };
 typedef struct uio_request* uio_request_t;
 

@@ -1069,6 +1069,7 @@ rt_err_t rt_usbd_device_set_controller(udevice_t device, udcd_t dcd)
     RT_ASSERT(device != RT_NULL);
     RT_ASSERT(dcd != RT_NULL);
 
+    rt_list_init(&dcd->ep0.request_list);
     /* set usb device controller driver to the device */
     device->dcd = dcd;
 
@@ -1906,15 +1907,17 @@ rt_err_t rt_usbd_ep0_setup_handler(udcd_t dcd, struct urequest* setup)
 void rt_usbd_ep0_in_handler(udcd_t dcd, int size)
 {
     int remain, mps;
+    uio_request_t req;
 
     RT_ASSERT(dcd != RT_NULL);
 
     if (dcd->stage != STAGE_DIN)
-        return RT_EOK;
+        return;
 
     mps = dcd->ep0.id->maxpacket;
-    dcd->ep0.request.remain_size -= mps;
-    remain = dcd->ep0.request.remain_size;
+    req = rt_list_first_entry(&dcd->ep0.request_list, struct uio_request, list);
+    remain = req->size - mps;
+    req->actual += size;
 
     if (remain > 0)
     {
@@ -1924,14 +1927,14 @@ void rt_usbd_ep0_in_handler(udcd_t dcd, int size)
         }
 
         dcd->ep0.request.buffer += mps;
-        dcd_ep_write(dcd, EP0_IN_ADDR, dcd->ep0.request.buffer, remain);
+        dcd_ep_write(dcd, EP0_IN_ADDR, req->buffer + req->actual, remain);
     }
     else
     {
         /* last packet is MPS multiple, so send ZLP packet */
-        if ((remain == 0) && (dcd->ep0.request.size > 0))
+        if ((remain == 0) && (req->size > 0))
         {
-            dcd->ep0.request.size = 0;
+            req->size = 0;
             dcd_ep_write(dcd, EP0_IN_ADDR, RT_NULL, 0);
         }
         else
@@ -1941,8 +1944,6 @@ void rt_usbd_ep0_in_handler(udcd_t dcd, int size)
             dcd_ep_read_prepare(dcd, EP0_OUT_ADDR, RT_NULL, 0);
         }
     }
-
-    return RT_EOK;
 }
 
 rt_err_t rt_usbd_ep0_out_handler(udcd_t dcd, rt_size_t size)
@@ -2041,20 +2042,47 @@ rt_err_t rt_usbd_sof_handler(udcd_t dcd)
     return RT_EOK;
 }
 
+uio_request_t rt_usbd_req_alloc(int size)
+{
+    uio_request_t req;
+
+    req = rt_malloc(sizeof(*req));
+    if (!req)
+        return 0;
+    req->buffer = rt_malloc(size);
+    if (!req->buffer)
+    {
+        rt_free(req);
+        return 0;
+    }
+    rt_list_init(&req->list);
+    req->actual = 0;
+    req->bufsz = size;
+    req->size = 0;
+
+    return req;
+}
+
 rt_size_t rt_usbd_ep0_write(udevice_t device, void *buffer, rt_size_t size)
 {
     uep_t ep0;
     rt_size_t sent_size = 0;
+    uio_request_t req;
 
     RT_ASSERT(device != RT_NULL);    
     RT_ASSERT(device->dcd != RT_NULL);
     RT_ASSERT(buffer != RT_NULL);
     RT_ASSERT(size > 0);
 
+    req = rt_usbd_req_alloc(size);
+    if (!req)
+        return -1;
+
     ep0 = &device->dcd->ep0;
-    ep0->request.size = size;
-    ep0->request.buffer = buffer;
-    ep0->request.remain_size = size;
+    req->size = size;
+    rt_memcpy(req->buffer, buffer, size);
+    rt_list_insert_after(&ep0->request_list, &req->list);
+
     if(size >= ep0->id->maxpacket)
     {
         sent_size = ep0->id->maxpacket;
@@ -2065,7 +2093,7 @@ rt_size_t rt_usbd_ep0_write(udevice_t device, void *buffer, rt_size_t size)
     }
     device->dcd->stage = STAGE_DIN;
 
-    return dcd_ep_write(device->dcd, EP0_IN_ADDR, ep0->request.buffer, sent_size);
+    return dcd_ep_write(device->dcd, EP0_IN_ADDR, req->buffer, sent_size);
 }
 
 rt_size_t rt_usbd_ep0_read(udevice_t device, void *buffer, rt_size_t size, 
