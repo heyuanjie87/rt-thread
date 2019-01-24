@@ -1903,9 +1903,9 @@ rt_err_t rt_usbd_ep0_setup_handler(udcd_t dcd, struct urequest* setup)
     return RT_EOK;
 }
 
-rt_err_t rt_usbd_ep0_in_handler(udcd_t dcd)
+void rt_usbd_ep0_in_handler(udcd_t dcd, int size)
 {
-    rt_int32_t remain, mps;
+    int remain, mps;
 
     RT_ASSERT(dcd != RT_NULL);
 

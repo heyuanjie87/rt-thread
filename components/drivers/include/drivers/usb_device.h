@@ -305,7 +305,7 @@ rt_err_t rt_usbd_ep_clear_stall(udevice_t device, uep_t ep);
 rt_err_t rt_usbd_ep0_set_stall(udevice_t device);
 rt_err_t rt_usbd_ep0_clear_stall(udevice_t device);
 rt_err_t rt_usbd_ep0_setup_handler(udcd_t dcd, struct urequest* setup);
-rt_err_t rt_usbd_ep0_in_handler(udcd_t dcd);
+void rt_usbd_ep0_in_handler(udcd_t dcd, int size);
 rt_err_t rt_usbd_ep0_out_handler(udcd_t dcd, rt_size_t size);
 rt_err_t rt_usbd_ep_in_handler(udcd_t dcd, rt_uint8_t address, rt_size_t size);
 rt_err_t rt_usbd_ep_out_handler(udcd_t dcd, rt_uint8_t address, rt_size_t size);
