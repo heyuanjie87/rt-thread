@@ -1926,7 +1926,6 @@ void rt_usbd_ep0_in_handler(udcd_t dcd, int size)
             remain = mps;
         }
 
-        dcd->ep0.request.buffer += mps;
         dcd_ep_write(dcd, EP0_IN_ADDR, req->buffer + req->actual, remain);
     }
     else
@@ -1939,6 +1938,7 @@ void rt_usbd_ep0_in_handler(udcd_t dcd, int size)
         }
         else
         {
+            rt_usbd_req_free(req);
             /* receive status */
             dcd->stage = STAGE_STATUS_OUT;
             dcd_ep_read_prepare(dcd, EP0_OUT_ADDR, RT_NULL, 0);
@@ -1951,6 +1951,8 @@ rt_err_t rt_usbd_ep0_out_handler(udcd_t dcd, rt_size_t size)
     struct udev_msg msg;
 
     RT_ASSERT(dcd != RT_NULL);
+    if (dcd->stage == STAGE_STATUS_OUT)
+        return 0;
 
     msg.type = USB_MSG_EP0_OUT;
     msg.dcd = dcd;
@@ -2061,6 +2063,13 @@ uio_request_t rt_usbd_req_alloc(int size)
     req->size = 0;
 
     return req;
+}
+
+void rt_usbd_req_free(uio_request_t req)
+{
+    rt_list_remove(&req->list);
+    rt_free(req->buffer);
+    rt_free(req);
 }
 
 rt_size_t rt_usbd_ep0_write(udevice_t device, void *buffer, rt_size_t size)

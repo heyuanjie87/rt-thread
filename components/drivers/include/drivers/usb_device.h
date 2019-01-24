@@ -315,6 +315,8 @@ rt_err_t rt_usbd_connect_handler(udcd_t dcd);
 rt_err_t rt_usbd_disconnect_handler(udcd_t dcd);
 rt_err_t rt_usbd_sof_handler(udcd_t dcd);
 
+void rt_usbd_req_free(uio_request_t req);
+
 int dcd_set_address(udcd_t dcd, rt_uint8_t address);
 
 rt_inline rt_err_t dcd_set_config(udcd_t dcd, rt_uint8_t address)
