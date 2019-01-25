@@ -17,6 +17,12 @@
 #include "drivers/usb_common.h"
 #include "drivers/usb_device.h"
 
+#define DBG_ENABLE
+#define DBG_SECTION_NAME  "UDC core"
+#define DBG_LEVEL         DBG_LOG
+#define DBG_COLOR
+#include <rtdbg.h>
+
 static rt_list_t device_list;
 
 static rt_size_t rt_usbd_ep_write(udevice_t device, uep_t ep, void *buffer, rt_size_t size);
@@ -111,7 +117,7 @@ static rt_err_t _get_string_descriptor(struct udevice* device, ureq_t setup)
 
     if(index > USB_STRING_MAX)
     {
-        rt_kprintf("unknown string index\n");
+        LOG_D("unknown string index\n");
         rt_usbd_ep0_set_stall(device);
         return -RT_ERROR;
     }
@@ -211,14 +217,14 @@ static rt_err_t _get_descriptor(struct udevice* device, ureq_t setup)
             _get_config_descriptor(device, setup);
             break;
         default:
-            rt_kprintf("unsupported descriptor request\n");
+            LOG_D("unsupported descriptor request\n");
             rt_usbd_ep0_set_stall(device);
             break;
         }
     }
     else
     {
-        rt_kprintf("request direction error\n");
+        LOG_D("request direction error\n");
         rt_usbd_ep0_set_stall(device);
     }
 
@@ -360,7 +366,7 @@ static rt_err_t _set_config(struct udevice* device, ureq_t setup)
     RT_ASSERT(device != RT_NULL);
     RT_ASSERT(setup != RT_NULL);
 
-    RT_DEBUG_LOG(RT_DEBUG_USB, ("_set_config\n"));
+    LOG_D("_set_config\n");
 
     if (setup->wValue > device->dev_desc.bNumConfigurations)
     {
@@ -370,7 +376,7 @@ static rt_err_t _set_config(struct udevice* device, ureq_t setup)
 
     if (setup->wValue == 0)
     {
-        RT_DEBUG_LOG(RT_DEBUG_USB, ("address state\n"));
+        LOG_D("address state\n");
         device->state = USB_STATE_ADDRESS;
 
         goto _exit;
@@ -521,7 +527,7 @@ static rt_err_t _standard_request(struct udevice* device, ureq_t setup)
             _set_config(device, setup);
             break;
         default:
-            rt_kprintf("unknown device request\n");
+            LOG_D("unknown device request\n");
             rt_usbd_ep0_set_stall(device);
             break;
         }
@@ -538,7 +544,7 @@ static rt_err_t _standard_request(struct udevice* device, ureq_t setup)
         default:
             if (_request_interface(device, setup) != RT_EOK)
             {
-                rt_kprintf("unknown interface request\n");
+                LOG_D("unknown interface request\n");
                 rt_usbd_ep0_set_stall(device);
                 return - RT_ERROR;
             }
@@ -598,17 +604,17 @@ static rt_err_t _standard_request(struct udevice* device, ureq_t setup)
         case USB_REQ_SYNCH_FRAME:
             break;
         default:
-            rt_kprintf("unknown endpoint request\n");
+            LOG_D("unknown endpoint request\n");
             rt_usbd_ep0_set_stall(device);
             break;
         }
         break;
     case USB_REQ_TYPE_OTHER:
-        rt_kprintf("unknown other type request\n");
+        LOG_D("unknown other type request\n");
         rt_usbd_ep0_set_stall(device);
         break;
     default:
-        rt_kprintf("unknown type request\n");
+        LOG_D("unknown type request\n");
         rt_usbd_ep0_set_stall(device);
         break;
     }
@@ -646,7 +652,7 @@ static rt_err_t _function_request(udevice_t device, ureq_t setup)
         intf = rt_usbd_find_interface(device, setup->wIndex & 0xFF, &func);
         if(intf == RT_NULL)
         {
-            rt_kprintf("unkwown interface request\n");
+            LOG_D("unkwown interface request\n");
             rt_usbd_ep0_set_stall(device);
         }
         else
@@ -657,7 +663,7 @@ static rt_err_t _function_request(udevice_t device, ureq_t setup)
     case USB_REQ_TYPE_ENDPOINT:
         break;
     default:
-        rt_kprintf("unknown function request type\n");
+        LOG_D("unknown function request type\n");
         rt_usbd_ep0_set_stall(device);
         break;
     }
@@ -761,7 +767,7 @@ static rt_err_t _setup_request(udevice_t device, ureq_t setup)
         _vendor_request(device, setup);
         break;
     default:
-        rt_kprintf("unknown setup request type\n");
+        LOG_E("unknown setup request type\n");
         rt_usbd_ep0_set_stall(device);
         return -RT_ERROR;
     }
@@ -782,69 +788,26 @@ static rt_err_t _data_notify(udevice_t device, struct ep_msg* ep_msg)
     uep_t ep;
     ufunction_t func;
     rt_size_t size = 0;
-    
+    struct uio_request *req;
+
     RT_ASSERT(device != RT_NULL);
     RT_ASSERT(ep_msg != RT_NULL);
-    
+
     if (device->state != USB_STATE_CONFIGURED)
     {
         return -RT_ERROR;
     }
-    
+
     ep = rt_usbd_find_endpoint(device, &func, ep_msg->ep_addr);
     if(ep == RT_NULL)
-    {        
-        rt_kprintf("invalid endpoint\n");
+    {
+        LOG_E("invalid endpoint\n");
         return -RT_ERROR;
     }
 
-    if(EP_ADDRESS(ep) & USB_DIR_IN)
-    {
-        size = ep_msg->size;
-        if(ep->request.remain_size >= EP_MAXPACKET(ep))
-        {
-            dcd_ep_write(device->dcd, EP_ADDRESS(ep), ep->request.buffer, EP_MAXPACKET(ep));
-            ep->request.remain_size -= EP_MAXPACKET(ep);
-            ep->request.buffer += EP_MAXPACKET(ep);     
-        }
-        else if(ep->request.remain_size > 0)
-        {
-            dcd_ep_write(device->dcd, EP_ADDRESS(ep), ep->request.buffer, ep->request.remain_size);
-            ep->request.remain_size = 0;
-        }
-        else
-        {
-            EP_HANDLER(ep, func, size);
-        }
-    }
-    else
-    {
-        size = ep_msg->size;
-        if(ep->request.remain_size == 0)
-        {
-            return RT_EOK;            
-        }
-            
-        if(size == 0)
-        {
-            size = dcd_ep_read(device->dcd, EP_ADDRESS(ep), ep->request.buffer);
-        }
-        ep->request.remain_size -= size;
-        ep->request.buffer += size;
-
-        if(ep->request.req_type == UIO_REQUEST_READ_BEST)
-        {
-            EP_HANDLER(ep, func, size);
-        }
-        else if(ep->request.remain_size == 0)
-        {
-            EP_HANDLER(ep, func, ep->request.size);
-        }
-        else
-        {
-            dcd_ep_read_prepare(device->dcd, EP_ADDRESS(ep), ep->request.buffer, ep->request.remain_size > EP_MAXPACKET(ep) ? EP_MAXPACKET(ep) : ep->request.remain_size);
-        }
-    }
+    req = rt_list_first_entry(&ep->request_list, struct uio_request, list);
+    req->actual = ep_msg->size;
+    EP_HANDLER(ep, func, req);
 
     return RT_EOK;
 }
@@ -861,32 +824,12 @@ static rt_err_t _ep0_out_notify(udevice_t device, struct ep_msg* ep_msg)
     ep0 = &device->dcd->ep0;
     size = ep_msg->size;
 
-    if(ep0->request.remain_size == 0)
+    if (ep_msg->size == 0)
     {
-        return RT_EOK;            
-    }    
-    if(size == 0)
-    {
-        size = dcd_ep_read(device->dcd, EP0_OUT_ADDR, ep0->request.buffer);
-        if(size == 0)
-        {
-            return RT_EOK;
-        }        
-    }
+        struct uio_request *req;
 
-    ep0->request.remain_size -= size; 
-    ep0->request.buffer += size;
-    if(ep0->request.remain_size == 0)
-    {
-        /* invoke callback */
-        if(ep0->rx_indicate != RT_NULL)
-        {
-            ep0->rx_indicate(device, size);
-        }        
-    }
-    else
-    {
-        rt_usbd_ep0_read(device, ep0->request.buffer, ep0->request.remain_size,ep0->rx_indicate);
+        req = rt_list_first_entry(&ep0->request_list, struct uio_request, list);
+        rt_usbd_req_free(req);
     }
 
     return RT_EOK;
@@ -947,25 +890,18 @@ static rt_err_t _stop_notify(udevice_t device)
 static rt_size_t rt_usbd_ep_write(udevice_t device, uep_t ep, void *buffer, rt_size_t size)
 {
     rt_uint16_t maxpacket;
-        
+
     RT_ASSERT(device != RT_NULL);    
     RT_ASSERT(device->dcd != RT_NULL);
     RT_ASSERT(ep != RT_NULL);    
 
     rt_enter_critical();
     maxpacket = EP_MAXPACKET(ep);
-    if(ep->request.remain_size >= maxpacket)
-    {
-        dcd_ep_write(device->dcd, EP_ADDRESS(ep), ep->request.buffer, maxpacket);
-        ep->request.remain_size -= maxpacket;
-        ep->request.buffer += maxpacket;    
-    }
-    else
-    {
-        dcd_ep_write(device->dcd, EP_ADDRESS(ep), ep->request.buffer, 
-            ep->request.remain_size);
-        ep->request.remain_size = 0;
-    }
+    if (maxpacket > size)
+        maxpacket = size;
+
+    dcd_ep_write(device->dcd, EP_ADDRESS(ep), buffer, maxpacket);
+
     rt_exit_critical();
     return size;
 }
@@ -998,7 +934,7 @@ udevice_t rt_usbd_device_new(void)
     udevice = rt_malloc(sizeof(struct udevice));
     if(udevice == RT_NULL)
     {
-        rt_kprintf("alloc memery failed\n");
+        LOG_D("alloc memery failed\n");
         return RT_NULL;
     }
     rt_memset(udevice, 0, sizeof(struct udevice));
@@ -1113,7 +1049,7 @@ uconfig_t rt_usbd_config_new(void)
     cfg = rt_malloc(sizeof(struct uconfig));
     if(cfg == RT_NULL)
     {
-        rt_kprintf("alloc memery failed\n");
+        LOG_D("alloc memery failed\n");
         return RT_NULL;
     }
     rt_memset(cfg, 0, sizeof(struct uconfig));
@@ -1152,7 +1088,7 @@ uintf_t rt_usbd_interface_new(udevice_t device, uintf_handler_t handler)
     intf = (uintf_t)rt_malloc(sizeof(struct uinterface));
     if(intf == RT_NULL)
     {
-        rt_kprintf("alloc memery failed\n");
+        LOG_D("alloc memery failed\n");
         return RT_NULL;
     }
     intf->intf_num = device->nr_intf;
@@ -1187,14 +1123,14 @@ ualtsetting_t rt_usbd_altsetting_new(rt_size_t desc_size)
     setting = (ualtsetting_t)rt_malloc(sizeof(struct ualtsetting));
     if(setting == RT_NULL)
     {
-        rt_kprintf("alloc memery failed\n");
+        LOG_D("alloc memery failed\n");
         return RT_NULL;
     }
     /* allocate memory for the desc */
     setting->desc = rt_malloc(desc_size);
     if (setting->desc == RT_NULL)
     {
-        rt_kprintf("alloc desc memery failed\n");
+        LOG_D("alloc desc memery failed\n");
         rt_free(setting);
         return RT_NULL;
     }
@@ -1252,7 +1188,7 @@ ufunction_t rt_usbd_function_new(udevice_t device, udev_desc_t dev_desc,
     func = (ufunction_t)rt_malloc(sizeof(struct ufunction));
     if(func == RT_NULL)
     {
-        rt_kprintf("alloc memery failed\n");
+        LOG_D("alloc memery failed\n");
         return RT_NULL;
     }
     func->dev_desc = dev_desc;
@@ -1287,12 +1223,11 @@ uep_t rt_usbd_endpoint_new(uep_desc_t ep_desc, udep_handler_t handler)
     ep = (uep_t)rt_malloc(sizeof(struct uendpoint));
     if(ep == RT_NULL)
     {
-        rt_kprintf("alloc memery failed\n");
+        LOG_D("alloc memery failed\n");
         return RT_NULL;
     }
     ep->ep_desc = ep_desc;
     ep->handler = handler;
-    ep->buffer  = RT_NULL;
     ep->stalled = RT_FALSE;
     rt_list_init(&ep->request_list);
 
@@ -1321,7 +1256,7 @@ udevice_t rt_usbd_find_device(udcd_t dcd)
         if(device->dcd == dcd) return device;
     }
 
-    rt_kprintf("can't find device\n");
+    LOG_D("can't find device\n");
     return RT_NULL;
 }
 
@@ -1354,7 +1289,7 @@ uconfig_t rt_usbd_find_config(udevice_t device, rt_uint8_t value)
         }
     }
 
-    rt_kprintf("can't find configuration %d\n", value);
+    LOG_D("can't find configuration %d\n", value);
     return RT_NULL;
 }
 
@@ -1395,7 +1330,7 @@ uintf_t rt_usbd_find_interface(udevice_t device, rt_uint8_t value, ufunction_t *
         }
     }
 
-    rt_kprintf("can't find interface %d\n", value);
+    LOG_D("can't find interface %d\n", value);
     return RT_NULL;
 }
 
@@ -1432,7 +1367,7 @@ ualtsetting_t rt_usbd_find_altsetting(uintf_t intf, rt_uint8_t value)
             return setting;
     }
 
-    rt_kprintf("can't find alternate setting %d\n", value);
+    LOG_D("can't find alternate setting %d\n", value);
     return RT_NULL;
 }
 
@@ -1475,7 +1410,7 @@ uep_t rt_usbd_find_endpoint(udevice_t device, ufunction_t* pfunc, rt_uint8_t ep_
         }
     }
 
-    rt_kprintf("can't find endpoint 0x%x\n", ep_addr);
+    LOG_D("can't find endpoint 0x%x\n", ep_addr);
     return RT_NULL;
 }
 
@@ -1520,7 +1455,7 @@ rt_err_t rt_usbd_device_add_config(udevice_t device, uconfig_t cfg)
                 ep = (uep_t)rt_list_entry(k, struct uendpoint, list);
                 if(rt_usbd_ep_assign(device, ep) != RT_EOK)
                 {
-                    rt_kprintf("endpoint assign error\n");
+                    LOG_D("endpoint assign error\n");
                 }
             }
 
@@ -1705,33 +1640,36 @@ rt_err_t rt_usbd_set_config(udevice_t device, rt_uint8_t value)
 rt_size_t rt_usbd_io_request(udevice_t device, uep_t ep, uio_request_t req)
 {
     rt_size_t size = 0;
-    
+
     RT_ASSERT(device != RT_NULL);
     RT_ASSERT(req != RT_NULL);
 
     if(ep->stalled == RT_FALSE)
     {
-        switch(req->req_type)
+        if (!rt_list_isempty(&ep->request_list))
         {
-        case UIO_REQUEST_READ_BEST:
-        case UIO_REQUEST_READ_FULL:
-            ep->request.remain_size = ep->request.size;
-            size = rt_usbd_ep_read_prepare(device, ep, req->buffer, req->size);
-            break;
-        case UIO_REQUEST_WRITE:
-            ep->request.remain_size = ep->request.size;
+            rt_list_insert_after(&ep->request_list, &req->list);
+            return size;
+        }
+        else
+        {
+            rt_list_insert_after(&ep->request_list, &req->list);
+        }
+
+        if (EP_ADDRESS(ep) & 0x80)
+        {
             size = rt_usbd_ep_write(device, ep, req->buffer, req->size);
-            break;
-        default:
-            rt_kprintf("unknown request type\n");
-            break;
+        }
+        else
+        {
+            size = rt_usbd_ep_read_prepare(device, ep, req->buffer, req->size);
         }
     }
     else
     {
-        rt_list_insert_before(&ep->request_list, &req->list);
-        RT_DEBUG_LOG(RT_DEBUG_USB, ("suspend a request\n"));
-    }            
+        //rt_list_insert_before(&ep->request_list, &req->list);
+        LOG_I("suspend a request\n");
+    }
 
     return size;
 }
@@ -1888,7 +1826,7 @@ rt_err_t rt_usbd_ep0_setup_handler(udcd_t dcd, struct urequest* setup)
         size = dcd_ep_read(dcd, EP0_OUT_ADDR, (void*)&msg.content.setup);
         if(size != sizeof(struct urequest))
         {
-            rt_kprintf("read setup packet error\n");
+            LOG_E("read setup packet error\n");
             return -RT_ERROR;
         }
     }
@@ -1908,14 +1846,16 @@ void rt_usbd_ep0_in_handler(udcd_t dcd, int size)
 {
     int remain, mps;
     uio_request_t req;
+    struct uendpoint *ep;
 
     RT_ASSERT(dcd != RT_NULL);
 
     if (dcd->stage != STAGE_DIN)
         return;
 
-    mps = dcd->ep0.id->maxpacket;
-    req = rt_list_first_entry(&dcd->ep0.request_list, struct uio_request, list);
+    ep = &dcd->ep0;
+    mps = ep->id->maxpacket;
+    req = rt_list_first_entry(&ep->request_list, struct uio_request, list);
     remain = req->size - mps;
     req->actual += size;
 
@@ -1938,7 +1878,6 @@ void rt_usbd_ep0_in_handler(udcd_t dcd, int size)
         }
         else
         {
-            rt_usbd_req_free(req);
             /* receive status */
             dcd->stage = STAGE_STATUS_OUT;
             dcd_ep_read_prepare(dcd, EP0_OUT_ADDR, RT_NULL, 0);
@@ -1951,8 +1890,6 @@ rt_err_t rt_usbd_ep0_out_handler(udcd_t dcd, rt_size_t size)
     struct udev_msg msg;
 
     RT_ASSERT(dcd != RT_NULL);
-    if (dcd->stage == STAGE_STATUS_OUT)
-        return 0;
 
     msg.type = USB_MSG_EP0_OUT;
     msg.dcd = dcd;
@@ -2060,7 +1997,7 @@ uio_request_t rt_usbd_req_alloc(int size)
     rt_list_init(&req->list);
     req->actual = 0;
     req->bufsz = size;
-    req->size = 0;
+    req->size = size;
 
     return req;
 }
@@ -2087,10 +2024,20 @@ rt_size_t rt_usbd_ep0_write(udevice_t device, void *buffer, rt_size_t size)
     if (!req)
         return -1;
 
+    LOG_D("ep0 wr: %d", size);
+
     ep0 = &device->dcd->ep0;
     req->size = size;
     rt_memcpy(req->buffer, buffer, size);
-    rt_list_insert_after(&ep0->request_list, &req->list);
+    if (!rt_list_isempty(&ep0->request_list))
+    {
+        rt_list_insert_after(&ep0->request_list, &req->list);
+        return size;
+    }
+    else
+    {
+        rt_list_insert_after(&ep0->request_list, &req->list);
+    }
 
     if(size >= ep0->id->maxpacket)
     {
@@ -2114,7 +2061,8 @@ rt_size_t rt_usbd_ep0_read(udevice_t device, void *buffer, rt_size_t size,
     RT_ASSERT(device != RT_NULL);
     RT_ASSERT(device->dcd != RT_NULL);
     RT_ASSERT(buffer != RT_NULL);
-
+    LOG_D("ep0read todo\n");
+#if 0 //
     ep0 = &device->dcd->ep0;
     ep0->request.buffer = buffer;    
     ep0->request.remain_size = size;
@@ -2129,8 +2077,54 @@ rt_size_t rt_usbd_ep0_read(udevice_t device, void *buffer, rt_size_t size,
     }
     device->dcd->stage = STAGE_DOUT;
     dcd_ep_read_prepare(device->dcd, EP0_OUT_ADDR, buffer, read_size);
-
+#endif
     return size;
+}
+
+void usbd_os_proerty_descriptor_send(ufunction_t func, ureq_t setup, usb_os_proerty_t usb_os_proerty, rt_uint8_t number_of_proerty)
+{
+    struct usb_os_property_header header;
+    static rt_uint8_t * data;
+    rt_uint8_t * pdata;
+    rt_uint8_t index,i;
+    if(data == RT_NULL)
+    {
+        header.dwLength = sizeof(struct usb_os_property_header);
+        header.bcdVersion = 0x0100;
+        header.wIndex = 0x05;
+        header.wCount = number_of_proerty;
+        for(index = 0;index < number_of_proerty;index++)
+        {
+            header.dwLength += usb_os_proerty[index].dwSize;
+        }
+        data = (rt_uint8_t *)rt_malloc(header.dwLength);
+        RT_ASSERT(data != RT_NULL);
+        pdata = data;
+        rt_memcpy((void *)pdata,(void *)&header,sizeof(struct usb_os_property_header));
+        pdata += sizeof(struct usb_os_property_header);
+        for(index = 0;index < number_of_proerty;index++)
+        {
+            rt_memcpy((void *)pdata,(void *)&usb_os_proerty[index],10);
+            pdata += 10;
+            for(i = 0;i < usb_os_proerty[index].wPropertyNameLength/2;i++)
+            {
+                *pdata = usb_os_proerty[index].bPropertyName[i];
+                pdata++;
+                *pdata = 0;
+                pdata++;
+            }
+            *((rt_uint32_t *)pdata) = usb_os_proerty[index].dwPropertyDataLength;
+            pdata += 4;
+            for(i = 0;i < usb_os_proerty[index].dwPropertyDataLength/2;i++)
+            {
+                *pdata = usb_os_proerty[index].bPropertyData[i];
+                pdata++;
+                *pdata = 0;
+                pdata++;
+            }
+        }
+    }
+    rt_usbd_ep0_write(func->device, data, setup->wLength);
 }
 
 static struct rt_messagequeue usb_mq;
@@ -2158,12 +2152,10 @@ static void rt_usbd_thread_entry(void* parameter)
         device = rt_usbd_find_device(msg.dcd);
         if(device == RT_NULL)
         {
-            rt_kprintf("invalid usb device\n");
+            LOG_D("invalid usb device\n");
             continue;
         }
 
-        RT_DEBUG_LOG(RT_DEBUG_USB, ("message type %d\n", msg.type));
-        
         switch (msg.type)
         {
         case USB_MSG_SOF:
@@ -2194,7 +2186,7 @@ static void rt_usbd_thread_entry(void* parameter)
             _stop_notify(device);
             break;
         default:
-            rt_kprintf("unknown msg type %d\n", msg.type);
+            LOG_D("unknown msg type %d\n", msg.type);
             break;
         }
     }

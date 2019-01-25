@@ -17,6 +17,12 @@
 #include <dfs_file.h>
 #include <dfs_poll.h>
 
+#define DBG_ENABLE
+#define DBG_SECTION_NAME  "WinUSB"
+#define DBG_LEVEL         DBG_LOG
+#define DBG_COLOR
+#include <rtdbg.h>
+
 /* default for ADB */
 #ifndef WINUSB_MANUFAC_STRING
 #define WINUSB_MANUFAC_STRING "RT-Thread Team"
@@ -62,11 +68,12 @@ struct winusb_device
     uep_t ep_out;
     uep_t ep_in;
 
+    int rpos;
     struct rt_wqueue wq;
     struct rt_wqueue rq;
-    rt_uint16_t rdcnt;
-    rt_uint16_t wrcnt;
-    struct rt_ringbuffer *rrb;
+    rt_list_t wcomp;
+    rt_list_t rcomp;
+    uio_request_t wreq;
 };
 
 typedef struct winusb_device * winusb_device_t;
@@ -184,53 +191,50 @@ static struct usb_os_function_comp_id_descriptor winusb_func_comp_id_desc =
 static int _readreq(ufunction_t func, struct winusb_device *wd)
 {
     struct uio_request *req;
-
+#if 0
     req = &wd->ep_out->request;
 
     req->buffer = wd->ep_out->buffer;
     req->size = EP_MAXPACKET(wd->ep_out);
     req->req_type = UIO_REQUEST_READ_BEST;
-
+#endif
     return rt_usbd_io_request(func->device, wd->ep_out, req);
 }
 
-static rt_err_t _ep_out_handler(ufunction_t func, rt_size_t size)
+static rt_err_t _ep_out_handler(ufunction_t func, uio_request_t req)
 {
     winusb_device_t wd = (winusb_device_t)func->user_data;
-    int space;
 
-    if (size == 0)
-    {
-        _readreq(func, wd);
-        return RT_EOK;
-    }
+    LOG_D("epout %d of %d", req->actual, req->size);
 
-    if (wd->rdcnt != 0)
+    if (req->actual <= 0)
     {
-        rt_kprintf("err!! F:%s L:%d rdcnt != 0 rdcnt:%d\n", __FUNCTION__, __LINE__, wd->rdcnt);
-    }
-
-    space = rt_ringbuffer_space_len(wd->rrb);
-    if (size <= space)
-    {
-        rt_ringbuffer_put(wd->rrb, wd->ep_out->buffer, size);
-        _readreq(func, wd);
+        rt_usbd_io_request(func->device, wd->ep_out, req);
     }
     else
     {
-        wd->rdcnt = size; /* let data pending in ep_out->buffer */
+        rt_list_insert_after(&wd->rcomp, &req->list);
+        rt_wqueue_wakeup(&(wd->rq), (void *)POLLIN);
     }
 
-    rt_wqueue_wakeup(&(wd->rq), (void *)POLLIN);
     return RT_EOK;
 }
 
-static rt_err_t _ep_in_handler(ufunction_t func, rt_size_t size)
+static rt_err_t _ep_in_handler(ufunction_t func, uio_request_t req)
 {
     winusb_device_t wd = (winusb_device_t)func->user_data;
 
-    wd->wrcnt -= size;
-    rt_wqueue_wakeup(&(wd->wq), (void *)POLLOUT);
+    LOG_D("epin %d of %d", req->actual, req->size);
+
+    if (req->actual <= 0)
+    {
+
+    }
+    else
+    {
+        rt_list_insert_after(&wd->wcomp, &req->list);
+        rt_wqueue_wakeup(&(wd->wq), (void *)POLLOUT);
+    }
 
     return RT_EOK;
 }
@@ -281,42 +285,19 @@ static rt_err_t _interface_handler(ufunction_t func, ureq_t setup)
     return RT_EOK;
 }
 
-#ifdef RT_USING_POSIX
-static int _ep_alloc_request(uep_t ep)
-{
-    int size;
-
-    size = EP_MAXPACKET(ep);
-    ep->buffer = rt_malloc(size);
-    if (!ep->buffer)
-        return -1;
-
-    ep->request.buffer = ep->buffer;
-    ep->request.size = size;
-    ep->request.req_type = UIO_REQUEST_READ_BEST;
-
-    return 0;
-}
-#endif
-
 static rt_err_t _function_enable(ufunction_t func)
 {
     struct winusb_device *wd;
+    struct uio_request *req;
 
     RT_ASSERT(func != RT_NULL);
     wd = func->user_data;
 
-    wd->rdcnt = 0;
-    wd->wrcnt = 0;
+    wd->rpos = 0;
 
-    if (_ep_alloc_request(wd->ep_out) != 0)
-        return -1;
-    if (_ep_alloc_request(wd->ep_in) != 0)
-    {
-        rt_free(wd->ep_out->buffer);
-        return -1;
-    }
-    _readreq(func, wd);
+    wd->wreq = rt_usbd_req_alloc(EP_MAXPACKET(wd->ep_in));
+    req = rt_usbd_req_alloc(EP_MAXPACKET(wd->ep_out));
+    rt_usbd_io_request(func->device, wd->ep_out, req);
 
     return RT_EOK;
 }
@@ -327,11 +308,6 @@ static rt_err_t _function_disable(ufunction_t func)
 
     RT_ASSERT(func != RT_NULL);
     wd = func->user_data;
-
-    rt_free(wd->ep_out->buffer);
-    rt_free(wd->ep_in->buffer);
-    wd->ep_out->buffer = 0;
-    wd->ep_in->buffer = 0;
 
     rt_wqueue_wakeup(&(wd->rq), (void *)POLLHUP);
     rt_wqueue_wakeup(&(wd->wq), (void *)POLLHUP);
@@ -378,6 +354,7 @@ static int _file_read(struct dfs_fd *fd, void *buf, size_t size)
     struct winusb_device *wd;
     struct ufunction *f;
     size_t rsize, tsize;
+    struct uio_request *req;
 
     wd = (struct winusb_device *)fd->data;
     f = (struct ufunction *)wd->parent.user_data;
@@ -385,7 +362,7 @@ static int _file_read(struct dfs_fd *fd, void *buf, size_t size)
     if (!f->enabled)
         return -ENODEV;
 
-    while (!rt_ringbuffer_data_len(wd->rrb) && !wd->rdcnt)
+    while (rt_list_isempty(&wd->rcomp))
     {
         if (fd->flags & O_NONBLOCK)
             return -EAGAIN;
@@ -395,23 +372,15 @@ static int _file_read(struct dfs_fd *fd, void *buf, size_t size)
             return -ENODEV;
     }
 
-    rsize = rt_ringbuffer_data_len(wd->rrb);
-    if (rsize)
+    req = rt_list_first_entry(&wd->rcomp, struct uio_request, list);
+    rsize = size > req->actual? req->actual : size;
+    rt_memcpy(buf, req->buffer + wd->rpos, rsize);
+    req->actual -= rsize;
+    if (req->actual == 0)
     {
-        if (rsize > size)
-            rsize = size;
-        rsize = rt_ringbuffer_get(wd->rrb, buf, rsize);
-    }
-
-    if (wd->rdcnt)
-    {
-        tsize = rt_ringbuffer_space_len(wd->rrb);
-        if (tsize >= wd->rdcnt)
-        {
-            rt_ringbuffer_put(wd->rrb, wd->ep_out->buffer, wd->rdcnt);
-            wd->rdcnt = 0;
-            _readreq(f, wd);
-        }
+        rt_list_remove(&req->list);
+        wd->rpos = 0;
+        rt_usbd_io_request(f->device, wd->ep_out, req);
     }
 
     return rsize;
@@ -430,7 +399,7 @@ static int _file_write(struct dfs_fd *fd, const void *buf, size_t size)
     if (!f->enabled)
         return -ENODEV;
 
-    while (wd->wrcnt)
+    while (!rt_list_isempty(&wd->wcomp))
     {
         if (fd->flags & O_NONBLOCK)
             return -EAGAIN;
@@ -440,14 +409,12 @@ static int _file_write(struct dfs_fd *fd, const void *buf, size_t size)
             return -ENODEV;
     }
 
-    req = &wd->ep_in->request;
-
-    wlen = size > EP_MAXPACKET(wd->ep_in) ? EP_MAXPACKET(wd->ep_in) : size;
-    wd->wrcnt = wlen;
-    req->buffer = wd->ep_in->buffer;
-    rt_memcpy(req->buffer, buf, wlen);
+    req = wd->wreq;
+    rt_list_remove(&req->list);
+    wlen = size > req->bufsz? req->bufsz : size;
     req->size = wlen;
-    req->req_type = UIO_REQUEST_WRITE;
+    rt_memcpy(req->buffer, buf, wlen);
+
     rt_usbd_io_request(f->device, wd->ep_in, req);
 
     return wlen;
@@ -464,12 +431,12 @@ static int _file_poll(struct dfs_fd *fd, struct rt_pollreq *req)
 
     if (!f->enabled)
         return POLLHUP;
-    if (wd->rdcnt || rt_ringbuffer_data_len(wd->rrb))
+    if (!rt_list_isempty(&wd->rcomp))
         mask |= POLLIN;
     else
         rt_poll_add(&wd->rq, req);
 
-    if (!wd->wrcnt)
+    if (rt_list_isempty(&wd->wcomp))
         mask |= POLLOUT;
     else
         rt_poll_add(&wd->wq, req);
@@ -503,7 +470,6 @@ static rt_err_t rt_usb_winusb_init(ufunction_t func)
     winusb_device->parent.fops = &_fops;
     rt_wqueue_init(&winusb_device->rq);
     rt_wqueue_init(&winusb_device->wq);
-    winusb_device->rrb = rt_ringbuffer_create(1024);
 
     return ret;
 }

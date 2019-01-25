@@ -38,7 +38,7 @@ extern "C" {
 #define USB_BCD_VERSION             0x0200   /* USB 2.0 */
 #define EP0_IN_ADDR                 0x80
 #define EP0_OUT_ADDR                0x00
-#define EP_HANDLER(ep, func, size)  RT_ASSERT(ep != RT_NULL); ep->handler(func, size)
+#define EP_HANDLER(ep, func, req)  RT_ASSERT(ep != RT_NULL); ep->handler(func, req)
 #define EP_ADDRESS(ep)              ep->ep_desc->bEndpointAddress
 #define EP_MAXPACKET(ep)            ep->ep_desc->wMaxPacketSize
 #define FUNC_ENABLE(func)           do{                                             \
@@ -101,7 +101,7 @@ struct ep_id
     rt_uint8_t  status;
 };
 
-typedef rt_err_t (*udep_handler_t)(struct ufunction* func, rt_size_t size);
+typedef rt_err_t (*udep_handler_t)(struct ufunction* func, struct uio_request *req);
 
 struct uio_request
 {
@@ -110,7 +110,7 @@ struct uio_request
     rt_uint8_t* buffer;
     rt_size_t size;
     rt_size_t remain_size;
-    rt_size_t actual;
+    int actual;
     rt_size_t bufsz;
 };
 typedef struct uio_request* uio_request_t;
@@ -120,8 +120,6 @@ struct uendpoint
     rt_list_t list;
     uep_desc_t ep_desc;
     rt_list_t request_list;
-    struct uio_request request;
-    rt_uint8_t* buffer;
     rt_bool_t stalled;
     struct ep_id* id;
     udep_handler_t handler;
@@ -315,6 +313,7 @@ rt_err_t rt_usbd_connect_handler(udcd_t dcd);
 rt_err_t rt_usbd_disconnect_handler(udcd_t dcd);
 rt_err_t rt_usbd_sof_handler(udcd_t dcd);
 
+uio_request_t rt_usbd_req_alloc(int size);
 void rt_usbd_req_free(uio_request_t req);
 
 int dcd_set_address(udcd_t dcd, rt_uint8_t address);
@@ -352,51 +351,7 @@ int dcd_ep_set_stall(udcd_t dcd, rt_uint8_t address);
 
 int dcd_ep_clear_stall(udcd_t dcd, rt_uint8_t address);
 
-rt_inline void usbd_os_proerty_descriptor_send(ufunction_t func, ureq_t setup, usb_os_proerty_t usb_os_proerty, rt_uint8_t number_of_proerty)
-{
-    struct usb_os_property_header header;
-    static rt_uint8_t * data;
-    rt_uint8_t * pdata;
-    rt_uint8_t index,i;
-    if(data == RT_NULL)
-    {
-        header.dwLength = sizeof(struct usb_os_property_header);
-        header.bcdVersion = 0x0100;
-        header.wIndex = 0x05;
-        header.wCount = number_of_proerty;
-        for(index = 0;index < number_of_proerty;index++)
-        {
-            header.dwLength += usb_os_proerty[index].dwSize;
-        }
-        data = (rt_uint8_t *)rt_malloc(header.dwLength);
-        RT_ASSERT(data != RT_NULL);
-        pdata = data;
-        rt_memcpy((void *)pdata,(void *)&header,sizeof(struct usb_os_property_header));
-        pdata += sizeof(struct usb_os_property_header);
-        for(index = 0;index < number_of_proerty;index++)
-        {
-            rt_memcpy((void *)pdata,(void *)&usb_os_proerty[index],10);
-            pdata += 10;
-            for(i = 0;i < usb_os_proerty[index].wPropertyNameLength/2;i++)
-            {
-                *pdata = usb_os_proerty[index].bPropertyName[i];
-                pdata++;
-                *pdata = 0;
-                pdata++;
-            }
-            *((rt_uint32_t *)pdata) = usb_os_proerty[index].dwPropertyDataLength;
-            pdata += 4;
-            for(i = 0;i < usb_os_proerty[index].dwPropertyDataLength/2;i++)
-            {
-                *pdata = usb_os_proerty[index].bPropertyData[i];
-                pdata++;
-                *pdata = 0;
-                pdata++;
-            }
-        }
-    }
-    rt_usbd_ep0_write(func->device, data, setup->wLength);
-}
+void usbd_os_proerty_descriptor_send(ufunction_t func, ureq_t setup, usb_os_proerty_t usb_os_proerty, rt_uint8_t number_of_proerty);
 
 #ifdef __cplusplus
 }
