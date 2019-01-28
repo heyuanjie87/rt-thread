@@ -806,6 +806,7 @@ static rt_err_t _data_notify(udevice_t device, struct ep_msg* ep_msg)
     }
 
     req = rt_list_first_entry(&ep->request_list, struct uio_request, list);
+		rt_list_remove(&req->list);
     req->actual = ep_msg->size;
     EP_HANDLER(ep, func, req);
 

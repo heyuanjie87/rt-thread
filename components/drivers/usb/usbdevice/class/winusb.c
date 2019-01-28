@@ -73,7 +73,6 @@ struct winusb_device
     struct rt_wqueue rq;
     rt_list_t wcomp;
     rt_list_t rcomp;
-    uio_request_t wreq;
 };
 
 typedef struct winusb_device * winusb_device_t;
@@ -295,7 +294,8 @@ static rt_err_t _function_enable(ufunction_t func)
 
     wd->rpos = 0;
 
-    wd->wreq = rt_usbd_req_alloc(EP_MAXPACKET(wd->ep_in));
+    req = rt_usbd_req_alloc(EP_MAXPACKET(wd->ep_in));
+    rt_list_insert_after(&wd->wcomp, &req->list);
     req = rt_usbd_req_alloc(EP_MAXPACKET(wd->ep_out));
     rt_usbd_io_request(func->device, wd->ep_out, req);
 
@@ -376,6 +376,7 @@ static int _file_read(struct dfs_fd *fd, void *buf, size_t size)
     rsize = size > req->actual? req->actual : size;
     rt_memcpy(buf, req->buffer + wd->rpos, rsize);
     req->actual -= rsize;
+    wd->rpos += rsize;
     if (req->actual == 0)
     {
         rt_list_remove(&req->list);
@@ -399,7 +400,7 @@ static int _file_write(struct dfs_fd *fd, const void *buf, size_t size)
     if (!f->enabled)
         return -ENODEV;
 
-    while (!rt_list_isempty(&wd->wcomp))
+    while (rt_list_isempty(&wd->wcomp))
     {
         if (fd->flags & O_NONBLOCK)
             return -EAGAIN;
@@ -409,7 +410,7 @@ static int _file_write(struct dfs_fd *fd, const void *buf, size_t size)
             return -ENODEV;
     }
 
-    req = wd->wreq;
+    req = rt_list_first_entry(&wd->wcomp, struct uio_request, list);;
     rt_list_remove(&req->list);
     wlen = size > req->bufsz? req->bufsz : size;
     req->size = wlen;
@@ -436,7 +437,7 @@ static int _file_poll(struct dfs_fd *fd, struct rt_pollreq *req)
     else
         rt_poll_add(&wd->rq, req);
 
-    if (rt_list_isempty(&wd->wcomp))
+    if (!rt_list_isempty(&wd->wcomp))
         mask |= POLLOUT;
     else
         rt_poll_add(&wd->wq, req);
@@ -460,16 +461,18 @@ static const struct dfs_file_ops _fops =
 static rt_err_t rt_usb_winusb_init(ufunction_t func)
 {
     rt_err_t ret;
+    winusb_device_t wd = (winusb_device_t)func->user_data;
 
-    winusb_device_t winusb_device = (winusb_device_t)func->user_data;
-    winusb_device->parent.type = RT_Device_Class_Miscellaneous;
+    wd->parent.type = RT_Device_Class_Miscellaneous;
 
-    winusb_device->parent.user_data = func;
-    ret = rt_device_register(&winusb_device->parent, "winusb", RT_DEVICE_FLAG_RDWR);
+    wd->parent.user_data = func;
+    ret = rt_device_register(&wd->parent, "winusb", RT_DEVICE_FLAG_RDWR);
 
-    winusb_device->parent.fops = &_fops;
-    rt_wqueue_init(&winusb_device->rq);
-    rt_wqueue_init(&winusb_device->wq);
+    wd->parent.fops = &_fops;
+    rt_wqueue_init(&wd->rq);
+    rt_wqueue_init(&wd->wq);
+    rt_list_init(&wd->rcomp);
+    rt_list_init(&wd->wcomp);
 
     return ret;
 }
