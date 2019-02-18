@@ -5,19 +5,42 @@
 #include <sys/stat.h>
 #include "xipfs.h"
 
-static struct xipfs_dev * _xipdev = 0;
+static void xipfs_dev_init(struct xipfs_dev *dev, rt_nor_t *nor)
+{
+
+}
 
 static int dfs_xipfs_mount(struct dfs_filesystem *fs, unsigned long rwflag, const void *data)
 {
     struct xipfs_dev *dev;
+    rt_nor_t *nor;
+    int ret;
 
-    _xipdev = (struct xipfs_dev*)fs->dev_id->user_data;
-    dev = _xipdev;
-    return xipfs_mount(dev);
+    nor = (rt_nor_t*)fs->dev_id;
+    if (nor->parent.parent.type != RT_Device_Class_MTD)
+        return -ENODEV;
+    if (nor->parent.type != MTD_TYPE_NOR)
+        return -ENODEV;
+    dev = rt_malloc(sizeof(struct xipfs_dev));
+    if (!dev)
+        return -ENOMEM;
+
+    xipfs_dev_init(dev, nor);
+    ret = xipfs_mount(dev)
+    if (ret == 0)
+        nor->parent.priv = dev;
+
+    return ret;
 }
 
 static int dfs_xipfs_unmount(struct dfs_filesystem *fs)
 {
+    rt_nor_t *nor;
+
+    nor = (rt_nor_t*)fs->dev_id;
+    rt_free(nor->parent.priv);
+    nor->parent.priv = 0;
+
     return 0;
 }
 

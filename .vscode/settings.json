@@ -5,5 +5,8 @@
         "**/build": true,
         "bsp" : true,
     },
-    "editor.renderWhitespace": "all"
+    "editor.renderWhitespace": "all",
+    "files.associations": {
+        "mtd_nor.h": "c"
+    }
 }
