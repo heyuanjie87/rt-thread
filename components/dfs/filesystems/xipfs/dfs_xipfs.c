@@ -10,6 +10,14 @@ static void xipfs_dev_init(struct xipfs_dev *dev, rt_nor_t *nor)
 
 }
 
+static struct xipfs_dev *xipfs_dev_get(struct dfs_filesystem *fs)
+{
+    rt_nor_t *nor;
+
+    nor = (rt_nor_t*)fs->dev_id;
+    return (struct xipfs_dev *)nor->parent.priv;
+}
+
 static int dfs_xipfs_mount(struct dfs_filesystem *fs, unsigned long rwflag, const void *data)
 {
     struct xipfs_dev *dev;
@@ -60,7 +68,7 @@ static int dfs_xipfs_open(struct dfs_fd *file)
     struct xipfs_dev *dev;
     struct xipfs_dirent *ent;
 
-    dev = _xipdev;
+    dev = xipfs_dev_get(file->fs);
 
     ret = xipfs_open(dev, file->path, file->flags, &ent);
     if (ret >= 0)
@@ -77,7 +85,7 @@ static int dfs_xipfs_close(struct dfs_fd *file)
 {
     struct xipfs_dev *dev;
 
-    dev = _xipdev;
+    dev = xipfs_dev_get(file->fs);
 
     xipfs_close(dev, (struct xipfs_dirent *)file->data, file->pos);
     file->data = NULL;
@@ -85,12 +93,12 @@ static int dfs_xipfs_close(struct dfs_fd *file)
     return 0;
 }
 
-int dfs_xipfs_write(struct dfs_fd *fd, const void *buf, size_t count)
+static int dfs_xipfs_write(struct dfs_fd *fd, const void *buf, size_t count)
 {
     int ret;
     struct xipfs_dev *dev;
 
-    dev = _xipdev;
+    dev = xipfs_dev_get(fd->fs);
     ret = xipfs_write(dev, (struct xipfs_dirent *)fd->data, fd->pos, (uint8_t *)buf, count);
     if (ret > 0)
         fd->pos += ret;
@@ -106,7 +114,7 @@ static int dfs_xipfs_getdents(struct dfs_fd *file, struct dirent *dirp, uint32_t
     struct dirent *d;
     struct xipfs_dirent *subrd;
 
-    dev = _xipdev;
+    dev = xipfs_dev_get(file->fs);
     /* make integer count */
     count = (count / sizeof(struct dirent));
     if (count == 0)
@@ -142,7 +150,7 @@ static int dfs_xipfs_read(struct dfs_fd *file, void *buf, size_t count)
     struct xipfs_dev *dev;
     int ret;
 
-    dev = _xipdev;
+    dev = xipfs_dev_get(file->fs);
     ret = xipfs_read(dev, (struct xipfs_dirent *)file->data, file->pos, buf, count);
     if (ret > 0)
         file->pos += ret;
@@ -154,7 +162,7 @@ static int dfs_xipfs_stat(struct dfs_filesystem *fs, const char *path, struct st
 {
     struct xipfs_dev *dev;
 
-    dev = fs->dev_id->user_data;
+    dev = xipfs_dev_get(fs);
 
     return xipfs_stat(dev, path, st);
 }
@@ -164,7 +172,7 @@ static int dfs_xipfs_ioctl(struct dfs_fd *file, int cmd, void *args)
     int ret = -EIO;
     struct xipfs_dev *dev;
 
-    dev = _xipdev;
+    dev = xipfs_dev_get(file->fs);
 #if 0
     switch (cmd)
     {
@@ -184,7 +192,7 @@ static int dfs_xipfs_unlink(struct dfs_filesystem *fs, const char *pathname)
 {
     struct xipfs_dev *dev;
 
-    dev = _xipdev;
+    dev = xipfs_dev_get(fs);
 
     return xipfs_unlink(dev, pathname);
 }
