@@ -5,9 +5,32 @@
 #include <sys/stat.h>
 #include "xipfs.h"
 
+static int xipfs_erase(struct xipfs_dev *d, uint32_t addr, uint32_t len)
+{
+    return 0;
+}
+
+static int xipfs_write(struct xipfs_dev *d, uint32_t addr, void *buf, uint32_t len)
+{
+    return 0;
+}
+
+static int xipfs_mutex(struct xipfs_dev *d, int op)
+{
+    return 0;
+}
+
+static const struct xipfs_nfops _xipops =
+{
+    xipfs_erase,
+    xipfs_write,
+    xipfs_mutex
+};
+
 static void xipfs_dev_init(struct xipfs_dev *dev, rt_nor_t *nor)
 {
-
+    dev->ctx = nor;
+    dev->ops = &_xipops;
 }
 
 static struct xipfs_dev *xipfs_dev_get(struct dfs_filesystem *fs)

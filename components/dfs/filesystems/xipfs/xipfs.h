@@ -10,6 +10,8 @@
 #define XIPFS_DTYPE_FILE    1
 #define XIPFS_DTYPE_DIR      2
 
+struct xipfs_dev;
+
 struct xipfs_dirent
 {
     uint32_t magic;
@@ -40,23 +42,23 @@ struct xipfs
 
 struct xipfs_nfops
 {
-    int (*erase)(uint32_t addr, uint32_t len);
-    int (*write)(uint32_t addr, void *buf, uint32_t size);
-    int (*mutex)(void *userdata, int lock);
+    int (*erase)(struct xipfs_dev *d, uint32_t addr, uint32_t len);
+    int (*write)(struct xipfs_dev *d, uint32_t addr, void *buf, uint32_t len);
+    int (*mutex)(struct xipfs_dev *d, int op); /* op:1 lock 0 unlock */
 };
 
 struct xipfs_dev
 {
-    uint32_t start;                                 /* start address of the xipfs */
-    uint32_t blksize;                            /* block size(bytes) */
-    uint32_t nblk;                                 /* number of blocks */
+    uint32_t start;                  /* start address of the xipfs(abs addr) */
+    uint32_t blksize;                /* block size(min erase size) */
+    uint32_t nblk;                   /* number of blocks */
     const struct xipfs_nfops *ops;
-    void *userdata;
+    void *lock;                      /* mutex lock(init by user) */
 
-    /* driver not touch */
     uint32_t ta_size; /* total size */
     uint32_t av_size; /* available size */
     void *writer;
+    void *ctx;
     struct xipfs_dirent root;
 };
 
