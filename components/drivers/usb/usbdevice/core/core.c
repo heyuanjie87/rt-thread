@@ -17,7 +17,7 @@
 #include "drivers/usb_common.h"
 #include "drivers/usb_device.h"
 
-#define DBG_ENABLE
+//#define DBG_ENABLE
 #define DBG_SECTION_NAME  "UDC core"
 #define DBG_LEVEL         DBG_LOG
 #define DBG_COLOR
@@ -1175,7 +1175,7 @@ rt_err_t rt_usbd_altsetting_config_descriptor(ualtsetting_t setting, const void*
  * @return an usb function object on success, RT_NULL on fail.
  */
 ufunction_t rt_usbd_function_new(udevice_t device, udev_desc_t dev_desc,
-                              ufunction_ops_t ops)
+                              const struct ufunction_ops *ops)
 {
     ufunction_t func;
 

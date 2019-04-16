@@ -388,6 +388,9 @@ menu "Using USB"
                     config _RT_USB_DEVICE_WINUSB
                         bool "Enable to use device as winusb device"
                         select RT_USB_DEVICE_WINUSB
+                    config _RT_USB_DEVICE_MTP
+                        bool "Enable to use device as mtp device"
+                        select RT_USB_DEVICE_MTP
                 endchoice
                 if RT_USB_DEVICE_COMPOSITE
                     config RT_USB_DEVICE_CDC
@@ -412,6 +415,9 @@ menu "Using USB"
                         depends on RT_USING_LWIP
                     config RT_USB_DEVICE_WINUSB
                         bool "Enable to use device as winusb device"
+                        default n
+                    config RT_USB_DEVICE_MTP
+                        bool "Enable to use device as mtp device"
                         default n
                 endif
                 if RT_USB_DEVICE_CDC

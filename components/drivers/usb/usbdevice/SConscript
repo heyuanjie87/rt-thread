@@ -26,6 +26,9 @@ if GetDepend('RT_USB_DEVICE_RNDIS'):
 if GetDepend('RT_USB_DEVICE_WINUSB'):
 	src += Glob('class/winusb.c')
 
+if GetDepend('RT_USB_DEVICE_MTP'):
+	src += Glob('class/mtp.c')
+
 CPPPATH = [cwd]
 
 group = DefineGroup('rt_usbd', src, depend = ['RT_USING_USB_DEVICE'], CPPPATH = CPPPATH)

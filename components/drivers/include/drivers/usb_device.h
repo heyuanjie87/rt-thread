@@ -15,7 +15,7 @@
 #define  __USB_DEVICE_H__
 
 #include <rtthread.h>
-#include "drivers/usb_common.h"
+#include "usb_common.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -171,7 +171,7 @@ typedef struct ufunction_ops* ufunction_ops_t;
 struct ufunction
 {
     rt_list_t list;
-    ufunction_ops_t ops;
+    const struct ufunction_ops *ops;
     struct udevice* device;
     udev_desc_t dev_desc;
     void* user_data;
@@ -253,7 +253,7 @@ int rt_usbd_class_list_init(void);
 udevice_t rt_usbd_device_new(void);
 uconfig_t rt_usbd_config_new(void);
 ufunction_t rt_usbd_function_new(udevice_t device, udev_desc_t dev_desc,
-                              ufunction_ops_t ops);
+                              const struct ufunction_ops *ops);
 uintf_t rt_usbd_interface_new(udevice_t device, uintf_handler_t handler);
 uep_t rt_usbd_endpoint_new(uep_desc_t ep_desc, udep_handler_t handler);
 ualtsetting_t rt_usbd_altsetting_new(rt_size_t desc_size);
