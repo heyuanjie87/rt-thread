@@ -18,9 +18,8 @@
 #include <dfs_poll.h>
 
 #define DBG_ENABLE
-#define DBG_SECTION_NAME  "MTP"
+#define DBG_SECTION_NAME  "mtpUSB"
 #define DBG_LEVEL         DBG_LOG
-#define DBG_COLOR
 #include <rtdbg.h>
 
 struct mtp_descriptor
@@ -42,6 +41,11 @@ struct mtp_device
     uep_t ep_out;
     uep_t ep_in;
     uep_t ep_intr;
+
+    struct rt_wqueue wq;
+    struct rt_wqueue rq;
+    rt_list_t wcomp;
+    rt_list_t rcomp;
 };
 typedef struct mtp_device *mtp_device_t;
 
@@ -154,11 +158,39 @@ static struct usb_os_function_comp_id_descriptor _comp_id_desc =
 
 static rt_err_t _ep_out_handler(ufunction_t func, uio_request_t req)
 {
+    mtp_device_t wd = (mtp_device_t)func->user_data;
+
+    LOG_D("epout %d of %d", req->actual, req->size);
+
+    if (req->actual <= 0)
+    {
+        rt_usbd_io_request(func->device, wd->ep_out, req);
+    }
+    else
+    {
+        rt_list_insert_after(&wd->rcomp, &req->list);
+        rt_wqueue_wakeup(&(wd->rq), (void *)POLLIN);
+    }
+
     return 0;
 }
 
 static rt_err_t _ep_in_handler(ufunction_t func, uio_request_t req)
 {
+    mtp_device_t wd = (mtp_device_t)func->user_data;
+
+    LOG_D("epin %d of %d", req->actual, req->size);
+
+    if (req->actual <= 0)
+    {
+
+    }
+    else
+    {
+        rt_list_insert_after(&wd->wcomp, &req->list);
+        rt_wqueue_wakeup(&(wd->wq), (void *)POLLOUT);
+    }
+
     return 0;
 }
 
@@ -176,12 +208,29 @@ static rt_err_t _interface_handler(ufunction_t func, ureq_t setup)
 
 static rt_err_t _function_enable(ufunction_t func)
 {
+    struct mtp_device *wd;
+    struct uio_request *req;
+
+    wd = func->user_data;
+
+    req = rt_usbd_req_alloc(EP_MAXPACKET(wd->ep_in));
+    rt_list_insert_after(&wd->wcomp, &req->list);
+
+    req = rt_usbd_req_alloc(EP_MAXPACKET(wd->ep_out));
+    rt_usbd_io_request(func->device, wd->ep_out, req);
 
     return 0;
 }
 
 static rt_err_t _function_disable(ufunction_t func)
 {
+    struct mtp_device *wd;
+
+    RT_ASSERT(func != RT_NULL);
+    wd = func->user_data;
+
+    rt_wqueue_wakeup(&(wd->rq), (void *)POLLHUP);
+    rt_wqueue_wakeup(&(wd->wq), (void *)POLLHUP);
 
     return 0;
 }
@@ -193,6 +242,131 @@ static const struct ufunction_ops _uf_ops =
     RT_NULL,
 };
 
+/* file ops */
+static int _file_open(struct dfs_fd *fd)
+{
+    return 0;
+}
+
+static int _file_close(struct dfs_fd *fd)
+{
+    return 0;
+}
+
+static int _file_ioctl(struct dfs_fd *fd, int cmd, void *args)
+{
+    return 0;
+}
+
+static int _file_read(struct dfs_fd *fd, void *buf, size_t size)
+{
+    struct mtp_device *wd;
+    struct ufunction *f;
+    size_t rsize, tsize;
+    struct uio_request *req;
+
+    wd = (struct mtp_device *)fd->data;
+    f = (struct ufunction *)wd->parent.user_data;
+
+    if (!f->enabled)
+        return -ENODEV;
+
+    while (rt_list_isempty(&wd->rcomp))
+    {
+        if (fd->flags & O_NONBLOCK)
+            return -EAGAIN;
+
+        rt_wqueue_wait(&wd->rq, 0, RT_WAITING_FOREVER);
+        if (!f->enabled)
+            return -ENODEV;
+    }
+
+    req = rt_list_first_entry(&wd->rcomp, struct uio_request, list);
+    rsize = size > req->actual? req->actual : size;
+    rt_memcpy(buf, req->buffer + req->pos, rsize);
+    req->actual -= rsize;
+    req->pos += rsize;
+    if (req->actual == 0)
+    {
+        rt_list_remove(&req->list);
+        rt_usbd_io_request(f->device, wd->ep_out, req);
+    }
+
+    return rsize;
+}
+
+static int _file_write(struct dfs_fd *fd, const void *buf, size_t size)
+{
+    struct mtp_device *wd;
+    struct ufunction *f;
+    struct uio_request *req;
+    int wlen;
+
+    wd = (struct mtp_device *)fd->data;
+    f = (struct ufunction *)wd->parent.user_data;
+
+    if (!f->enabled)
+        return -ENODEV;
+
+    while (rt_list_isempty(&wd->wcomp))
+    {
+        if (fd->flags & O_NONBLOCK)
+            return -EAGAIN;
+
+        rt_wqueue_wait(&wd->wq, 0, RT_WAITING_FOREVER);
+        if (!f->enabled)
+            return -ENODEV;
+    }
+
+    req = rt_list_first_entry(&wd->wcomp, struct uio_request, list);;
+    rt_list_remove(&req->list);
+    wlen = size > req->bufsz? req->bufsz : size;
+    req->size = wlen;
+    rt_memcpy(req->buffer, buf, wlen);
+
+    rt_usbd_io_request(f->device, wd->ep_in, req);
+
+    return wlen;
+}
+
+static int _file_poll(struct dfs_fd *fd, struct rt_pollreq *req)
+{
+    int mask = 0;
+    struct mtp_device *wd;
+    struct ufunction *f;
+
+    wd = (struct mtp_device *)fd->data;
+    f = (struct ufunction *)wd->parent.user_data;
+
+    if (!f->enabled)
+        return POLLHUP;
+    if (!rt_list_isempty(&wd->rcomp))
+        mask |= POLLIN;
+    else
+        rt_poll_add(&wd->rq, req);
+
+    if (!rt_list_isempty(&wd->wcomp))
+        mask |= POLLOUT;
+    else
+        rt_poll_add(&wd->wq, req);
+
+    return mask;
+}
+
+static const struct dfs_file_ops _fops =
+{
+    _file_open,
+    _file_close,
+    _file_ioctl,
+    _file_read,
+    _file_write,
+    RT_NULL,
+    RT_NULL,
+    RT_NULL,
+    _file_poll
+};
+//
+
 static int rt_usb_winusb_init(ufunction_t func)
 {
     rt_err_t ret;
@@ -202,13 +376,13 @@ static int rt_usb_winusb_init(ufunction_t func)
 
     wd->parent.user_data = func;
     ret = rt_device_register(&wd->parent, "mtp", RT_DEVICE_FLAG_RDWR);
-#if 0
+
     wd->parent.fops = &_fops;
     rt_wqueue_init(&wd->rq);
     rt_wqueue_init(&wd->wq);
     rt_list_init(&wd->rcomp);
     rt_list_init(&wd->wcomp);
-#endif
+
     return ret;
 }
 

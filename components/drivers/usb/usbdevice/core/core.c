@@ -1645,6 +1645,7 @@ rt_size_t rt_usbd_io_request(udevice_t device, uep_t ep, uio_request_t req)
     RT_ASSERT(device != RT_NULL);
     RT_ASSERT(req != RT_NULL);
 
+    req->pos = 0;
     if(ep->stalled == RT_FALSE)
     {
         if (!rt_list_isempty(&ep->request_list))
