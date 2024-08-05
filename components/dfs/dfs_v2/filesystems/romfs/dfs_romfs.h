@@ -28,4 +28,37 @@ struct romfs_dirent
 int dfs_romfs_init(void);
 extern const struct romfs_dirent romfs_root;
 
+typedef rt_uint32_t __be32;
+
+#define ROMFS_MAGIC 0x7275
+
+#define ROMFS_MAXFN 128
+
+/* On-disk "super block" */
+struct romfs_super_block {
+	__be32 word0;
+	__be32 word1;
+	__be32 size;
+	__be32 checksum;
+	char name[];		/* volume name */
+};
+
+/* On disk inode */
+struct romfs_inode {
+	__be32 next;		/* low 4 bits see ROMFH_ */
+	__be32 spec;
+	__be32 size;
+	__be32 checksum;
+	char name[];
+};
+
+#define ROMFH_DIR 1
+#define ROMFH_REG 2
+#define ROMFH_SYM 3
+
+/* Alignment */
+#define ROMFH_SIZE 16
+#define ROMFH_PAD (ROMFH_SIZE-1)
+#define ROMFH_MASK (~ROMFH_PAD)
+
 #endif
