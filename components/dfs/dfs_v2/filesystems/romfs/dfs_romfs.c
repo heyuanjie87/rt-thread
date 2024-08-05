@@ -38,7 +38,7 @@ static int dfs_romfs_mount(struct dfs_mnt *mnt, unsigned long rwflag, const void
 {
     struct romfs_dirent *root_dirent;
 
-    if (data == NULL)
+    if (mnt->dev_id == NULL)
         return -1;
 
     root_dirent = (struct romfs_dirent *)data;
@@ -372,7 +372,7 @@ static const struct dfs_file_ops _rom_fops =
 
 static const struct dfs_filesystem_ops _romfs_ops =
 {
-    .name             ="rom",
+    .name             ="romfs",
     .flags            = 0,
     .default_fops     = &_rom_fops,
     .mount            = dfs_romfs_mount,
