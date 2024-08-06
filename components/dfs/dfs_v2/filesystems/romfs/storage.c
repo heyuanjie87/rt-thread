@@ -42,6 +42,8 @@ int romfs_dev_read(struct dfs_mnt *mnt, unsigned long pos,
 
                 pos_in_sector = pos % 512;
                 cplen = 512 - pos_in_sector;
+                if (cplen > blen)
+                    cplen = blen;
 
                 rt_memcpy(cbuf, &alignbuf[pos_in_sector], cplen);
                 cbuf += cplen;
