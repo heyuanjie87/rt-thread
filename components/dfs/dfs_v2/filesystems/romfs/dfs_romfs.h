@@ -13,6 +13,8 @@
 
 #include <rtthread.h>
 
+#include <dfs_mnt.h>
+
 #define ROMFS_DIRENT_FILE   0x00
 #define ROMFS_DIRENT_DIR    0x01
 
@@ -29,7 +31,19 @@ struct romfs_dirent
 int dfs_romfs_init(void);
 extern const struct romfs_dirent romfs_root;
 
+struct romfs_mnt {
+	struct dfs_vnode *root;
+    rt_uint32_t maxsize;
+};
+
 typedef rt_uint32_t __be32;
+
+rt_inline size_t romfs_maxsize(struct dfs_mnt *mnt)
+{
+	struct romfs_mnt *rmnt = mnt->data;
+
+	return rmnt->maxsize;
+}
 
 #define ROMFS_MAGIC 0x7275
 
@@ -69,5 +83,7 @@ struct romfs_inode {
 
 int romfs_dev_read(struct dfs_mnt *mnt, unsigned long pos,
 		   void *buf, size_t buflen);
+int romfs_dev_strnlen(struct dfs_mnt *mnt,
+                      unsigned long pos, size_t maxlen);
 
 #endif

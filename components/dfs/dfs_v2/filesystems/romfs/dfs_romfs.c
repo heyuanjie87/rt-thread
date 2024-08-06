@@ -111,6 +111,9 @@ static struct dfs_vnode *romfs_iget(struct dfs_mnt *mnt, unsigned long pos)
         pos = romfs_be32_to_cpu(ri.spec) & ROMFH_MASK;
     }
 
+	/* determine the length of the filename */
+	nlen = romfs_dev_strnlen(mnt, pos + ROMFH_SIZE, ROMFS_MAXFN);
+
     vnode = dfs_vnode_create();
     if (vnode)
     {
@@ -137,6 +140,7 @@ static int dfs_romfs_mount(struct dfs_mnt *mnt, unsigned long rwflag, const void
     rt_uint32_t                   pos;
     struct dfs_vnode             *root;
     struct rt_device_blk_geometry bge = {0};
+    struct romfs_mnt *rmnt;
 
     if (mnt->dev_id == NULL)
         return -EINVAL;
@@ -152,9 +156,12 @@ static int dfs_romfs_mount(struct dfs_mnt *mnt, unsigned long rwflag, const void
         return -EIO;
     }
 
+    rmnt = rt_malloc(sizeof(*rmnt));
     rsb = rt_malloc(512);
-    if (rsb == RT_NULL)
+    if (rsb == RT_NULL || rmnt == RT_NULL)
+    {
         return -ENOMEM;
+    }
 
     ret = romfs_dev_read(mnt, 0, rsb, 512);
 
@@ -173,8 +180,12 @@ static int dfs_romfs_mount(struct dfs_mnt *mnt, unsigned long rwflag, const void
     len = rt_strnlen(rsb->name, ROMFS_MAXFN);
 
     rt_free(rsb);
+
     /* find the root directory */
     pos = (ROMFH_SIZE + len + 1 + ROMFH_PAD) & ROMFH_MASK;
+
+    rmnt->maxsize = img_size;
+    mnt->data = rmnt;
 
     root = romfs_iget(mnt, pos);
     if (!root)
@@ -182,7 +193,7 @@ static int dfs_romfs_mount(struct dfs_mnt *mnt, unsigned long rwflag, const void
         return -ENOMEM;
     }
 
-    mnt->data = root;
+    rmnt->root = root;
 
     return 0;
 
