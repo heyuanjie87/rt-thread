@@ -115,11 +115,21 @@ static int dfs_romfs_mount(struct dfs_mnt *mnt, unsigned long rwflag, const void
     rt_size_t                 len;
     rt_uint32_t               pos;
     struct dfs_vnode         *root;
+    struct rt_device_blk_geometry bge = {0};
 
     if (mnt->dev_id == NULL)
         return -EINVAL;
 
-    rt_device_open(mnt->dev_id, RT_DEVICE_OFLAG_RDONLY);
+    ret = rt_device_open(mnt->dev_id, RT_DEVICE_OFLAG_RDONLY);
+    if (ret != 0)
+        return -EIO;
+
+    ret = rt_device_control(mnt->dev_id, RT_DEVICE_CTRL_BLK_GETGEOME, &bge);
+    if (ret != 0 || bge.bytes_per_sector != 512)
+    {
+        rt_device_close(mnt->dev_id);
+        return -EIO;
+    }
 
     rsb = rt_malloc(512);
     if (rsb == RT_NULL)
