@@ -61,4 +61,7 @@ struct romfs_inode {
 #define ROMFH_PAD (ROMFH_SIZE-1)
 #define ROMFH_MASK (~ROMFH_PAD)
 
+int romfs_dev_read(struct dfs_mnt *mnt, unsigned long pos,
+		   void *buf, size_t buflen);
+
 #endif

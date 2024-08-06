@@ -36,13 +36,17 @@ static const mode_t romfs_modemap[] =
 
 static int dfs_romfs_mount(struct dfs_mnt *mnt, unsigned long rwflag, const void *data)
 {
-    struct romfs_dirent *root_dirent;
+    struct romfs_super_block *rsb;
+    int ret;
 
     if (mnt->dev_id == NULL)
-        return -1;
+        return -EINVAL;
 
-    root_dirent = (struct romfs_dirent *)data;
-    mnt->data = root_dirent;
+    rsb = rt_malloc(512);
+    if (rsb == RT_NULL)
+        return -ENOMEM;
+
+    ret = romfs_dev_read(mnt, 0, rsb, 512);
 
     return 0;
 }
