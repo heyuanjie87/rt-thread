@@ -34,10 +34,13 @@ typedef rt_uint32_t __be32;
 
 #define ROMFS_MAXFN 128
 
+#define ROMSB_WORD0 "-rom"
+#define ROMSB_WORD1 "1fs-"
+
 /* On-disk "super block" */
 struct romfs_super_block {
-	__be32 word0;
-	__be32 word1;
+	char word0[4];
+	char word1[4];
 	__be32 size;
 	__be32 checksum;
 	char name[];		/* volume name */

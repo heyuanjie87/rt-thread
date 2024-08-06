@@ -34,13 +34,44 @@ static const mode_t romfs_modemap[] =
     S_IFIFO  | 0644     /* FIFO */
 };
 
+rt_inline rt_uint32_t romfs_swap32(rt_uint32_t v)
+{
+    rt_uint32_t ret;
+
+    ret = ((v & 0xff) << 24) | \
+          ((v & 0xff00) << 8) | \
+          ((v & 0xff0000) >> 8) | \
+          ((v & 0xff000000) >> 24);
+
+    return ret;
+}
+
+rt_inline rt_uint32_t romfs_be32_to_cpu(__be32 v)
+{
+    union
+    {
+        int i;
+        char c;
+    } e;
+
+    e.i = 1;
+
+    if (e.c)
+        return romfs_swap32(v);
+    else
+        return v;
+}
+
 static int dfs_romfs_mount(struct dfs_mnt *mnt, unsigned long rwflag, const void *data)
 {
     struct romfs_super_block *rsb;
     int ret;
+    rt_uint32_t img_size;
 
     if (mnt->dev_id == NULL)
         return -EINVAL;
+
+    rt_device_open(mnt->dev_id, RT_DEVICE_OFLAG_RDONLY);
 
     rsb = rt_malloc(512);
     if (rsb == RT_NULL)
@@ -48,7 +79,21 @@ static int dfs_romfs_mount(struct dfs_mnt *mnt, unsigned long rwflag, const void
 
     ret = romfs_dev_read(mnt, 0, rsb, 512);
 
+    img_size = romfs_be32_to_cpu(rsb->size);
+
+    if (rt_memcmp(rsb->word0, ROMSB_WORD0, 4) || 
+        rt_memcmp(rsb->word1, ROMSB_WORD1, 4) ||
+        img_size < ROMFH_SIZE)
+    {
+        goto error_rsb_inval;
+    }
+
     return 0;
+
+error_rsb_inval:
+	ret = -EINVAL;
+
+    return ret;
 }
 
 static int dfs_romfs_umount(struct dfs_mnt *fs)
