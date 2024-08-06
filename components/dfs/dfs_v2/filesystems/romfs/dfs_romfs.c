@@ -311,49 +311,20 @@ struct romfs_dirent *__dfs_romfs_lookup(struct romfs_dirent *root_dirent, const 
 
 static struct dfs_vnode *dfs_romfs_lookup(struct dfs_dentry *dentry)
 {
-    rt_size_t            size;
-    struct dfs_vnode    *vnode       = RT_NULL;
-    struct romfs_dirent *root_dirent = RT_NULL, *dirent = RT_NULL;
+    rt_size_t         size;
+    struct dfs_vnode *vnode = RT_NULL;
+    struct dfs_vnode *root;
 
     RT_ASSERT(dentry != RT_NULL);
     RT_ASSERT(dentry->mnt != RT_NULL);
 
-    root_dirent = (struct romfs_dirent *)dentry->mnt->data;
-    if (check_dirent(root_dirent) == 0)
-    {
-        /* create a vnode */
-        DLOG(msg, "rom", "vnode", DLOG_MSG, "dfs_vnode_create()");
-        vnode = dfs_vnode_create();
-        if (vnode)
-        {
-            dirent = __dfs_romfs_lookup(root_dirent, dentry->pathname, &size);
-            if (dirent)
-            {
-                vnode->nlink = 1;
-                vnode->size  = dirent->size;
-                if (dirent->type == ROMFS_DIRENT_DIR)
-                {
-                    vnode->mode = romfs_modemap[ROMFS_DIRENT_DIR] | (S_IRUSR | S_IXUSR | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH);
-                    vnode->type = FT_DIRECTORY;
-                }
-                else if (dirent->type == ROMFS_DIRENT_FILE)
-                {
-                    vnode->mode = romfs_modemap[ROMFS_DIRENT_FILE] | (S_IRUSR | S_IXUSR | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH);
-                    vnode->type = FT_REGULAR;
-                }
+    root = (struct dfs_vnode *)dentry->mnt->data;
 
-                DLOG(msg, "rom", "rom", DLOG_MSG, "vnode->data = dirent");
-                vnode->data = dirent;
-                vnode->mnt  = dentry->mnt;
-            }
-            else
-            {
-                /* no-entry */
-                DLOG(msg, "rom", "vnode", DLOG_MSG, "dfs_vnode_destroy, no-dentry");
-                dfs_vnode_destroy(vnode);
-                vnode = RT_NULL;
-            }
-        }
+    vnode = dfs_vnode_create();
+    if (vnode)
+    {
+        vnode->nlink = 1;
+        vnode->mnt   = dentry->mnt;
     }
 
     return vnode;
@@ -456,76 +427,29 @@ static int dfs_romfs_stat(struct dfs_dentry *dentry, struct stat *st)
 
 static int dfs_romfs_getdents(struct dfs_file *file, struct dirent *dirp, uint32_t count)
 {
-    rt_size_t            index;
-    const char          *name;
-    struct dirent       *d;
-    struct romfs_dirent *dirent, *sub_dirent;
-
-    dirent = (struct romfs_dirent *)file->vnode->data;
-    if (check_dirent(dirent) != 0)
-    {
-        return -EIO;
-    }
-    RT_ASSERT(dirent->type == ROMFS_DIRENT_DIR);
-
-    /* enter directory */
-    dirent = (struct romfs_dirent *)dirent->data;
-
-    /* make integer count */
-    count = (count / sizeof(struct dirent));
-    if (count == 0)
-    {
-        return -EINVAL;
-    }
-
-    index = 0;
-    for (index = 0; index < count && file->fpos < file->vnode->size; index++)
-    {
-        d = dirp + index;
-
-        sub_dirent = &dirent[file->fpos];
-        name       = sub_dirent->name;
-
-        /* fill dirent */
-        if (sub_dirent->type == ROMFS_DIRENT_DIR)
-            d->d_type = DT_DIR;
-        else
-            d->d_type = DT_REG;
-
-        d->d_namlen = rt_strlen(name);
-        d->d_reclen = (rt_uint16_t)sizeof(struct dirent);
-        rt_strncpy(d->d_name, name, DIRENT_NAME_MAX);
-
-        /* move to next position */
-        ++file->fpos;
-    }
-
-    return index * sizeof(struct dirent);
+    return 0;
 }
 
-static const struct dfs_file_ops _rom_fops =
-    {
-        .open     = dfs_romfs_open,
-        .close    = dfs_romfs_close,
-        .lseek    = generic_dfs_lseek,
-        .read     = dfs_romfs_read,
-        .getdents = dfs_romfs_getdents,
+static const struct dfs_file_ops _rom_fops = {
+    .open     = dfs_romfs_open,
+    .close    = dfs_romfs_close,
+    .lseek    = generic_dfs_lseek,
+    .read     = dfs_romfs_read,
+    .getdents = dfs_romfs_getdents,
 };
 
-static const struct dfs_filesystem_ops _romfs_ops =
-    {
-        .name         = "romfs",
-        .flags        = 0,
-        .default_fops = &_rom_fops,
-        .mount        = dfs_romfs_mount,
-        .umount       = dfs_romfs_umount,
-        .stat         = dfs_romfs_stat,
-        .lookup       = dfs_romfs_lookup,
-        .free_vnode   = dfs_romfs_free_vnode};
+static const struct dfs_filesystem_ops _romfs_ops = {
+    .name         = "romfs",
+    .flags        = 0,
+    .default_fops = &_rom_fops,
+    .mount        = dfs_romfs_mount,
+    .umount       = dfs_romfs_umount,
+    .stat         = dfs_romfs_stat,
+    .lookup       = dfs_romfs_lookup,
+    .free_vnode   = dfs_romfs_free_vnode};
 
-static struct dfs_filesystem_type _romfs =
-    {
-        .fs_ops = &_romfs_ops,
+static struct dfs_filesystem_type _romfs = {
+    .fs_ops = &_romfs_ops,
 };
 
 int dfs_romfs_init(void)
