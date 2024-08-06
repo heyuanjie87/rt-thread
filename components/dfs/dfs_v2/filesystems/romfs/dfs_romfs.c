@@ -20,6 +20,13 @@
 
 #include <rtdbg.h>
 
+struct romfs_inode_info
+{
+    unsigned long i_metasize;   /* size of non-data area */
+    unsigned long i_dataoffset; /* from the start of fs */
+    unsigned long ino;
+};
+
 static const struct dfs_file_ops _rom_fops;
 
 static const mode_t romfs_modemap[] =
@@ -82,11 +89,12 @@ static rt_uint32_t romfs_checksum(const void *data, int size)
  */
 static struct dfs_vnode *romfs_iget(struct dfs_mnt *mnt, unsigned long pos)
 {
-    struct romfs_inode ri;
-    unsigned long      nlen;
-    unsigned           nextfh;
-    int                ret;
-    struct dfs_vnode *vnode = RT_NULL;
+    struct romfs_inode       ri;
+    unsigned long            nlen;
+    unsigned                 nextfh;
+    int                      ret;
+    struct dfs_vnode        *vnode = RT_NULL;
+    struct romfs_inode_info *rii;
 
     /* we might have to traverse a chain of "hard link" file entries to get
 	 * to the actual file */
@@ -103,18 +111,31 @@ static struct dfs_vnode *romfs_iget(struct dfs_mnt *mnt, unsigned long pos)
         pos = romfs_be32_to_cpu(ri.spec) & ROMFH_MASK;
     }
 
+    vnode = dfs_vnode_create();
+    if (vnode)
+    {
+        rii = rt_malloc(sizeof(*rii));
+
+        rii->i_metasize   = (ROMFH_SIZE + nlen + 1 + ROMFH_PAD) & ROMFH_MASK;
+        rii->i_dataoffset = pos + rii->i_metasize;
+        rii->ino          = pos;
+
+        vnode->size = romfs_be32_to_cpu(ri.size);
+        vnode->data = rii;
+    }
+
 error:
     return vnode;
 }
 
 static int dfs_romfs_mount(struct dfs_mnt *mnt, unsigned long rwflag, const void *data)
 {
-    struct romfs_super_block *rsb;
-    int                       ret;
-    rt_uint32_t               img_size;
-    rt_size_t                 len;
-    rt_uint32_t               pos;
-    struct dfs_vnode         *root;
+    struct romfs_super_block     *rsb;
+    int                           ret;
+    rt_uint32_t                   img_size;
+    rt_size_t                     len;
+    rt_uint32_t                   pos;
+    struct dfs_vnode             *root;
     struct rt_device_blk_geometry bge = {0};
 
     if (mnt->dev_id == NULL)
@@ -156,6 +177,12 @@ static int dfs_romfs_mount(struct dfs_mnt *mnt, unsigned long rwflag, const void
     pos = (ROMFH_SIZE + len + 1 + ROMFH_PAD) & ROMFH_MASK;
 
     root = romfs_iget(mnt, pos);
+    if (!root)
+    {
+        return -ENOMEM;
+    }
+
+    mnt->data = root;
 
     return 0;
 
