@@ -23,6 +23,7 @@ struct romfs_dirent
     const char       *name; /* dirent name */
     const rt_uint8_t *data; /* file date ptr */
     rt_size_t        size;  /* file size */
+	rt_size_t        pos;
 };
 
 int dfs_romfs_init(void);
@@ -55,6 +56,8 @@ struct romfs_inode {
 	char name[];
 };
 
+#define ROMFH_TYPE 7
+#define ROMFH_HRD 0
 #define ROMFH_DIR 1
 #define ROMFH_REG 2
 #define ROMFH_SYM 3

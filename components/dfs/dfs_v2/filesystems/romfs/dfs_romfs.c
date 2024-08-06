@@ -23,34 +23,30 @@
 static const struct dfs_file_ops _rom_fops;
 
 static const mode_t romfs_modemap[] =
-{
-    S_IFREG  | 0644,    /* regular file */
-    S_IFDIR  | 0644,    /* directory */
-    0,                  /* hard link */
-    S_IFLNK  | 0777,    /* symlink */
-    S_IFBLK  | 0600,    /* blockdev */
-    S_IFCHR  | 0600,    /* chardev */
-    S_IFSOCK | 0644,    /* socket */
-    S_IFIFO  | 0644     /* FIFO */
+    {
+        S_IFREG | 0644,  /* regular file */
+        S_IFDIR | 0644,  /* directory */
+        0,               /* hard link */
+        S_IFLNK | 0777,  /* symlink */
+        S_IFBLK | 0600,  /* blockdev */
+        S_IFCHR | 0600,  /* chardev */
+        S_IFSOCK | 0644, /* socket */
+        S_IFIFO | 0644   /* FIFO */
 };
 
 rt_inline rt_uint32_t romfs_swap32(rt_uint32_t v)
 {
     rt_uint32_t ret;
 
-    ret = ((v & 0xff) << 24) | \
-          ((v & 0xff00) << 8) | \
-          ((v & 0xff0000) >> 8) | \
-          ((v & 0xff000000) >> 24);
+    ret = ((v & 0xff) << 24) | ((v & 0xff00) << 8) | ((v & 0xff0000) >> 8) | ((v & 0xff000000) >> 24);
 
     return ret;
 }
 
 rt_inline rt_uint32_t romfs_be32_to_cpu(__be32 v)
 {
-    union
-    {
-        int i;
+    union {
+        int  i;
         char c;
     } e;
 
@@ -62,11 +58,63 @@ rt_inline rt_uint32_t romfs_be32_to_cpu(__be32 v)
         return v;
 }
 
+/*
+ * checksum check on part of a romfs filesystem
+ */
+static rt_uint32_t romfs_checksum(const void *data, int size)
+{
+    const __be32 *ptr = data;
+    rt_uint32_t   sum = 0;
+
+    size >>= 2;
+    while (size > 0)
+    {
+        sum += romfs_be32_to_cpu(*ptr++);
+        size--;
+    }
+
+    return sum;
+}
+
+/*
+ * get a romfs inode based on its position in the image (which doubles as the
+ * inode number)
+ */
+static struct dfs_vnode *romfs_iget(struct dfs_mnt *mnt, unsigned long pos)
+{
+    struct romfs_inode ri;
+    unsigned long      nlen;
+    unsigned           nextfh;
+    int                ret;
+    struct dfs_vnode *vnode = RT_NULL;
+
+    /* we might have to traverse a chain of "hard link" file entries to get
+	 * to the actual file */
+    for (;;)
+    {
+        ret = romfs_dev_read(mnt, pos, &ri, sizeof(ri));
+        if (ret < 0)
+            goto error;
+
+        nextfh = romfs_be32_to_cpu(ri.next);
+        if ((nextfh & ROMFH_TYPE) != ROMFH_HRD)
+            break;
+
+        pos = romfs_be32_to_cpu(ri.spec) & ROMFH_MASK;
+    }
+
+error:
+    return vnode;
+}
+
 static int dfs_romfs_mount(struct dfs_mnt *mnt, unsigned long rwflag, const void *data)
 {
     struct romfs_super_block *rsb;
-    int ret;
-    rt_uint32_t img_size;
+    int                       ret;
+    rt_uint32_t               img_size;
+    rt_size_t                 len;
+    rt_uint32_t               pos;
+    struct dfs_vnode         *root;
 
     if (mnt->dev_id == NULL)
         return -EINVAL;
@@ -81,17 +129,28 @@ static int dfs_romfs_mount(struct dfs_mnt *mnt, unsigned long rwflag, const void
 
     img_size = romfs_be32_to_cpu(rsb->size);
 
-    if (rt_memcmp(rsb->word0, ROMSB_WORD0, 4) || 
-        rt_memcmp(rsb->word1, ROMSB_WORD1, 4) ||
-        img_size < ROMFH_SIZE)
+    if (rt_memcmp(rsb->word0, ROMSB_WORD0, 4) || rt_memcmp(rsb->word1, ROMSB_WORD1, 4) || img_size < ROMFH_SIZE)
     {
         goto error_rsb_inval;
     }
 
+    if (romfs_checksum(rsb, (img_size > 512) ? 512 : img_size))
+    {
+        goto error_rsb_inval;
+    }
+
+    len = rt_strnlen(rsb->name, ROMFS_MAXFN);
+
+    rt_free(rsb);
+    /* find the root directory */
+    pos = (ROMFH_SIZE + len + 1 + ROMFH_PAD) & ROMFH_MASK;
+
+    root = romfs_iget(mnt, pos);
+
     return 0;
 
 error_rsb_inval:
-	ret = -EINVAL;
+    ret = -EINVAL;
 
     return ret;
 }
@@ -103,7 +162,7 @@ static int dfs_romfs_umount(struct dfs_mnt *fs)
 
 int dfs_romfs_ioctl(struct dfs_file *file, int cmd, void *args)
 {
-    int ret = RT_EOK;
+    int                  ret = RT_EOK;
     struct romfs_dirent *dirent;
 
     dirent = (struct romfs_dirent *)file->data;
@@ -111,15 +170,13 @@ int dfs_romfs_ioctl(struct dfs_file *file, int cmd, void *args)
 
     switch (cmd)
     {
-    case RT_FIOGETADDR:
-        {
-            *(rt_ubase_t*)args = (rt_ubase_t)dirent->data;
-            break;
-        }
-    case RT_FIOFTRUNCATE:
-        {
-            break;
-        }
+    case RT_FIOGETADDR: {
+        *(rt_ubase_t *)args = (rt_ubase_t)dirent->data;
+        break;
+    }
+    case RT_FIOFTRUNCATE: {
+        break;
+    }
     default:
         ret = -RT_EINVAL;
         break;
@@ -130,7 +187,7 @@ int dfs_romfs_ioctl(struct dfs_file *file, int cmd, void *args)
 rt_inline int check_dirent(struct romfs_dirent *dirent)
 {
     if (dirent == NULL
-        ||(dirent->type != ROMFS_DIRENT_FILE && dirent->type != ROMFS_DIRENT_DIR)
+        || (dirent->type != ROMFS_DIRENT_FILE && dirent->type != ROMFS_DIRENT_DIR)
         || dirent->size == ~0)
         return -1;
     return 0;
@@ -138,10 +195,10 @@ rt_inline int check_dirent(struct romfs_dirent *dirent)
 
 struct romfs_dirent *__dfs_romfs_lookup(struct romfs_dirent *root_dirent, const char *path, rt_size_t *size)
 {
-    rt_size_t index, found;
-    const char *subpath, *subpath_end;
+    rt_size_t            index, found;
+    const char          *subpath, *subpath_end;
     struct romfs_dirent *dirent;
-    rt_size_t dirent_size;
+    rt_size_t            dirent_size;
 
     /* Check the root_dirent. */
     if (check_dirent(root_dirent) != 0)
@@ -154,38 +211,37 @@ struct romfs_dirent *__dfs_romfs_lookup(struct romfs_dirent *root_dirent, const 
     }
 
     /* goto root directy entries */
-    dirent = (struct romfs_dirent *)root_dirent->data;
+    dirent      = (struct romfs_dirent *)root_dirent->data;
     dirent_size = root_dirent->size;
 
     /* get the end position of this subpath */
     subpath_end = path;
     /* skip /// */
     while (*subpath_end && *subpath_end == '/')
-        subpath_end ++;
+        subpath_end++;
     subpath = subpath_end;
     while ((*subpath_end != '/') && *subpath_end)
-        subpath_end ++;
+        subpath_end++;
 
     while (dirent != NULL)
     {
         found = 0;
 
         /* search in folder */
-        for (index = 0; index < dirent_size; index ++)
+        for (index = 0; index < dirent_size; index++)
         {
             if (check_dirent(&dirent[index]) != 0)
                 return NULL;
-            if (rt_strlen(dirent[index].name) == (subpath_end - subpath) &&
-                    rt_strncmp(dirent[index].name, subpath, (subpath_end - subpath)) == 0)
+            if (rt_strlen(dirent[index].name) == (subpath_end - subpath) && rt_strncmp(dirent[index].name, subpath, (subpath_end - subpath)) == 0)
             {
                 dirent_size = dirent[index].size;
 
                 /* skip /// */
                 while (*subpath_end && *subpath_end == '/')
-                    subpath_end ++;
+                    subpath_end++;
                 subpath = subpath_end;
                 while ((*subpath_end != '/') && *subpath_end)
-                    subpath_end ++;
+                    subpath_end++;
 
                 if (!(*subpath))
                 {
@@ -197,7 +253,7 @@ struct romfs_dirent *__dfs_romfs_lookup(struct romfs_dirent *root_dirent, const 
                 {
                     /* enter directory */
                     dirent = (struct romfs_dirent *)dirent[index].data;
-                    found = 1;
+                    found  = 1;
                     break;
                 }
                 else
@@ -216,10 +272,10 @@ struct romfs_dirent *__dfs_romfs_lookup(struct romfs_dirent *root_dirent, const 
     return NULL;
 }
 
-static struct dfs_vnode *dfs_romfs_lookup (struct dfs_dentry *dentry)
+static struct dfs_vnode *dfs_romfs_lookup(struct dfs_dentry *dentry)
 {
-    rt_size_t size;
-    struct dfs_vnode *vnode = RT_NULL;
+    rt_size_t            size;
+    struct dfs_vnode    *vnode       = RT_NULL;
     struct romfs_dirent *root_dirent = RT_NULL, *dirent = RT_NULL;
 
     RT_ASSERT(dentry != RT_NULL);
@@ -237,7 +293,7 @@ static struct dfs_vnode *dfs_romfs_lookup (struct dfs_dentry *dentry)
             if (dirent)
             {
                 vnode->nlink = 1;
-                vnode->size = dirent->size;
+                vnode->size  = dirent->size;
                 if (dirent->type == ROMFS_DIRENT_DIR)
                 {
                     vnode->mode = romfs_modemap[ROMFS_DIRENT_DIR] | (S_IRUSR | S_IXUSR | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH);
@@ -251,7 +307,7 @@ static struct dfs_vnode *dfs_romfs_lookup (struct dfs_dentry *dentry)
 
                 DLOG(msg, "rom", "rom", DLOG_MSG, "vnode->data = dirent");
                 vnode->data = dirent;
-                vnode->mnt = dentry->mnt;
+                vnode->mnt  = dentry->mnt;
             }
             else
             {
@@ -279,7 +335,7 @@ static int dfs_romfs_free_vnode(struct dfs_vnode *vnode)
 
 static ssize_t dfs_romfs_read(struct dfs_file *file, void *buf, size_t count, off_t *pos)
 {
-    rt_size_t length;
+    rt_size_t            length;
     struct romfs_dirent *dirent;
 
     dirent = (struct romfs_dirent *)file->vnode->data;
@@ -311,10 +367,10 @@ static int dfs_romfs_close(struct dfs_file *file)
 
 int dfs_romfs_open(struct dfs_file *file)
 {
-    rt_size_t size;
+    rt_size_t            size;
     struct romfs_dirent *dirent;
     struct romfs_dirent *root_dirent;
-    struct dfs_mnt *mnt;
+    struct dfs_mnt      *mnt;
 
     if (file->flags & (O_CREAT | O_WRONLY | O_APPEND | O_TRUNC | O_RDWR))
     {
@@ -349,9 +405,9 @@ static int dfs_romfs_stat(struct dfs_dentry *dentry, struct stat *st)
     rt_err_t ret = dfs_file_lock();
     if (ret == RT_EOK)
     {
-        st->st_dev = 0;
-        st->st_mode = dentry->vnode->mode;
-        st->st_size = dentry->vnode->size;
+        st->st_dev   = 0;
+        st->st_mode  = dentry->vnode->mode;
+        st->st_size  = dentry->vnode->size;
         st->st_nlink = dentry->vnode->nlink;
         st->st_mtime = 0;
 
@@ -363,9 +419,9 @@ static int dfs_romfs_stat(struct dfs_dentry *dentry, struct stat *st)
 
 static int dfs_romfs_getdents(struct dfs_file *file, struct dirent *dirp, uint32_t count)
 {
-    rt_size_t index;
-    const char *name;
-    struct dirent *d;
+    rt_size_t            index;
+    const char          *name;
+    struct dirent       *d;
     struct romfs_dirent *dirent, *sub_dirent;
 
     dirent = (struct romfs_dirent *)file->vnode->data;
@@ -391,7 +447,7 @@ static int dfs_romfs_getdents(struct dfs_file *file, struct dirent *dirp, uint32
         d = dirp + index;
 
         sub_dirent = &dirent[file->fpos];
-        name = sub_dirent->name;
+        name       = sub_dirent->name;
 
         /* fill dirent */
         if (sub_dirent->type == ROMFS_DIRENT_DIR)
@@ -404,36 +460,35 @@ static int dfs_romfs_getdents(struct dfs_file *file, struct dirent *dirp, uint32
         rt_strncpy(d->d_name, name, DIRENT_NAME_MAX);
 
         /* move to next position */
-        ++ file->fpos;
+        ++file->fpos;
     }
 
     return index * sizeof(struct dirent);
 }
 
 static const struct dfs_file_ops _rom_fops =
-{
-    .open             = dfs_romfs_open,
-    .close            = dfs_romfs_close,
-    .lseek            = generic_dfs_lseek,
-    .read             = dfs_romfs_read,
-    .getdents         = dfs_romfs_getdents,
+    {
+        .open     = dfs_romfs_open,
+        .close    = dfs_romfs_close,
+        .lseek    = generic_dfs_lseek,
+        .read     = dfs_romfs_read,
+        .getdents = dfs_romfs_getdents,
 };
 
 static const struct dfs_filesystem_ops _romfs_ops =
-{
-    .name             ="romfs",
-    .flags            = 0,
-    .default_fops     = &_rom_fops,
-    .mount            = dfs_romfs_mount,
-    .umount           = dfs_romfs_umount,
-    .stat             = dfs_romfs_stat,
-    .lookup           = dfs_romfs_lookup,
-    .free_vnode       = dfs_romfs_free_vnode
-};
+    {
+        .name         = "romfs",
+        .flags        = 0,
+        .default_fops = &_rom_fops,
+        .mount        = dfs_romfs_mount,
+        .umount       = dfs_romfs_umount,
+        .stat         = dfs_romfs_stat,
+        .lookup       = dfs_romfs_lookup,
+        .free_vnode   = dfs_romfs_free_vnode};
 
 static struct dfs_filesystem_type _romfs =
-{
-    .fs_ops           = &_romfs_ops,
+    {
+        .fs_ops = &_romfs_ops,
 };
 
 int dfs_romfs_init(void)
