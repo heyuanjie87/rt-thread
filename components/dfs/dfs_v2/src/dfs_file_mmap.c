@@ -152,6 +152,7 @@ static void on_varea_close(struct rt_varea *varea)
         if (rt_atomic_load(&(file->ref_count)) == 1)
         {
             dfs_file_close(file);
+            dfs_file_free(file);
         }
         else
         {
@@ -409,6 +410,7 @@ struct dfs_mem_obj {
 static rt_mem_obj_t dfs_get_mem_obj(struct dfs_file *file)
 {
     rt_mem_obj_t mobj = file->mmap_context;
+
     if (!mobj)
     {
         struct dfs_mem_obj *dfs_mobj;
@@ -423,6 +425,7 @@ static rt_mem_obj_t dfs_get_mem_obj(struct dfs_file *file)
         }
         dfs_file_unlock();
     }
+
     return mobj;
 }
 
