@@ -190,7 +190,7 @@ int dfs_init(void)
 }
 INIT_PREV_EXPORT(dfs_init);
 
-struct dfs_file* dfs_file_alloc(void)
+struct dfs_file* dfs_file_create(void)
 {
     struct dfs_file *file;
 
