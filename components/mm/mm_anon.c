@@ -535,7 +535,7 @@ static int _override_map(rt_varea_t varea, rt_aspace_t aspace, void *fault_vaddr
         else
         {
             /* private object will be release on destruction of aspace */
-            rt_free(map_varea);
+            _varea_destroy(map_varea);
         }
     }
     else
@@ -665,7 +665,7 @@ static int _release_shared(rt_varea_t varea, void *arg)
         _varea_uninstall_locked(varea);
         if (VAREA_NOT_STATIC(varea))
         {
-            rt_free(varea);
+            _varea_destroy(varea);
         }
     }
 

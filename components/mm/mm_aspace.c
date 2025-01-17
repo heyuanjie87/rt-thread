@@ -116,7 +116,7 @@ void rt_aspace_detach(rt_aspace_t aspace)
         _varea_uninstall_locked(prev);
         if (VAREA_NOT_STATIC(prev))
         {
-            rt_free(prev);
+            _varea_destroy(prev);
         }
     }
     WR_UNLOCK(aspace);
@@ -348,7 +348,7 @@ rt_inline rt_err_t _migrate_and_release_varea(rt_aspace_t aspace, rt_varea_t to,
         to->size += from->size;
 
         if (VAREA_NOT_STATIC(from))
-            rt_free(from);
+            _varea_destroy(from);
     }
     return error;
 }
@@ -618,7 +618,7 @@ int _mm_aspace_map(rt_aspace_t aspace, rt_varea_t *pvarea, void **addr,
                 /* restore data structure and MMU */
                 _varea_uninstall_locked(varea);
                 if (!(varea->flag & MMF_STATIC_ALLOC))
-                    rt_free(varea);
+                    _varea_destroy(varea);
             }
         }
     }
@@ -638,6 +638,11 @@ static rt_varea_t _varea_create(void *start, rt_size_t size)
         varea->size = size;
     }
     return varea;
+}
+
+void _varea_destroy(struct rt_varea *varea)
+{
+    rt_free(varea);
 }
 
 #define _IS_OVERFLOW(start, length) ((length) > (0ul - (uintptr_t)(start)))
@@ -819,7 +824,7 @@ int rt_aspace_map_phy(rt_aspace_t aspace, rt_mm_va_hint_t hint, rt_size_t attr,
             err = _mm_aspace_map_phy(aspace, varea, hint, attr, pa_off, ret_va);
             if (err != RT_EOK)
             {
-                rt_free(varea);
+                _varea_destroy(varea);
             }
         }
         else
@@ -875,7 +880,7 @@ int _aspace_unmap(rt_aspace_t aspace, void *addr)
         _varea_uninstall_locked(varea);
         if (!(varea->flag & MMF_STATIC_ALLOC))
         {
-            rt_free(varea);
+            _varea_destroy(varea);
         }
         error = RT_EOK;
     }
@@ -968,7 +973,7 @@ static rt_err_t _split_varea(rt_varea_t existed, char *ex_end, char *unmap_start
             }
 
             if (error != RT_EOK)
-                rt_free(subset);
+                _varea_destroy(subset);
         }
         else
             error = -RT_ENOMEM;
@@ -1001,7 +1006,7 @@ static int _remove_overlapped_varea(rt_varea_t existed, char *unmap_start, rt_si
         _varea_uninstall_locked(existed);
         if (VAREA_NOT_STATIC(existed))
         {
-            rt_free(existed);
+            _varea_destroy(existed);
         }
         error = RT_EOK;
     }

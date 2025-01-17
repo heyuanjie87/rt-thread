@@ -132,4 +132,6 @@ rt_err_t rt_aspace_anon_ref_dec(rt_mem_obj_t aobj);
 rt_err_t rt_aspace_page_get_phy(rt_aspace_t aspace, void *page_va, void *buffer);
 rt_err_t rt_aspace_page_put_phy(rt_aspace_t aspace, void *page_va, void *buffer);
 
+void _varea_destroy(struct rt_varea *varea);
+
 #endif /* __MM_PRIVATE_H__ */
