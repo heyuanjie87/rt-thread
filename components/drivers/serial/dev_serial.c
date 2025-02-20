@@ -57,7 +57,7 @@
 #ifdef putc
 #undef putc
 #endif
-
+#undef RT_USING_SERIAL_BYPASS
 RT_OBJECT_HOOKLIST_DEFINE(rt_hw_serial_rxind);
 
 static rt_err_t serial_fops_rx_ind(rt_device_t dev, rt_size_t size)

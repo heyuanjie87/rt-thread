@@ -28,6 +28,7 @@
 #define DBG_TAG              "tmpfs"
 #define DBG_LVL              DBG_INFO
 #include <rtdbg.h>
+#undef RT_USING_PAGECACHE
 #ifdef RT_USING_PAGECACHE
 #include "dfs_pcache.h"
 #endif
