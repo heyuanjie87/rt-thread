@@ -59,6 +59,17 @@ static struct plic_handler* plic_handler_get(void)
     return &plic_handlers[0];
 }
 
+static void plic_toggle(struct plic_handler *handler, uint32_t hwirq, int enable)
+{
+    uint32_t *reg = handler->enable_base + (hwirq / 32) * sizeof(uint32_t);
+    uint32_t hwirq_mask = 1 << (hwirq % 32);
+
+    if (enable)
+        writel(readl(reg) | hwirq_mask, reg);
+    else
+        writel(readl(reg) & ~hwirq_mask, reg);
+}
+
 /*
  * Each PLIC interrupt source can be assigned a priority by writing
  * to its 32-bit memory-mapped priority register.
@@ -83,14 +94,16 @@ void plic_set_priority(int irq, int priority)
  */
 void plic_irq_enable(int irq)
 {
-    int hart = __raw_hartid();
-    *(uint32_t *)PLIC_ENABLE(hart) = ((*(uint32_t *)PLIC_ENABLE(hart)) | (1 << irq));
+    struct plic_handler *handler = plic_handler_get();
+    
+    plic_toggle(handler, irq, 1);
 }
 
 void plic_irq_disable(int irq)
 {
-    int hart = __raw_hartid();
-    *(uint32_t *)PLIC_ENABLE(hart) = (((*(uint32_t *)PLIC_ENABLE(hart)) & (~(1 << irq))));
+    struct plic_handler *handler = plic_handler_get();
+    
+    plic_toggle(handler, irq, 1);}
 }
 
 /*
@@ -138,8 +151,10 @@ int plic_claim(void)
  */
 void plic_complete(int irq)
 {
-    int hart = __raw_hartid();
-    *(uint32_t *)PLIC_COMPLETE(hart) = irq;
+    struct plic_handler *handler = plic_handler_get();
+    void *claim = handler->hart_base + CONTEXT_CLAIM;
+
+    writel(irq, claim);
 }
 
 void plic_set_ie(rt_uint32_t word_index, rt_uint32_t val)
