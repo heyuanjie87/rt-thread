@@ -13,14 +13,19 @@
 #define __PLIC_H__
 
 #include <rtconfig.h>
-#include <rthw.h>
+#include <stdint.h>
+
+struct plic_handler
+{
+    void *base;
+    void *hart_base;
+    void *enable_base;
+};
 
 #define PLIC_PRIORITY_BASE  0x0
 #define PLIC_PENDING_BASE   0x1000
 #define PLIC_ENABLE_BASE    0x2000
 #define PLIC_CONTEXT_BASE   0x200000
-
-extern size_t plic_base;
 
 #define VIRT_PLIC_BASE                  (plic_base)
 
@@ -72,8 +77,8 @@ void plic_set_threshold(int mthreshold);
 int  plic_claim(void);
 void plic_complete(int irq);
 
-void plic_set_thresh(rt_uint32_t val);
-void plic_set_ie(rt_uint32_t word_index,rt_uint32_t val);
+void plic_set_thresh(uint32_t val);
+void plic_set_ie(uint32_t word_index, uint32_t val);
 void plic_init();
 void plic_handle_irq(void);
 

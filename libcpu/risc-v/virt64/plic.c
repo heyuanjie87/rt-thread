@@ -29,6 +29,37 @@
 size_t plic_base = 0x0c000000L;
 
 /*
+ * Each interrupt source has a priority register associated with it.
+ * We always hardwire it to one in Linux.
+ */
+#define PRIORITY_BASE 0
+#define PRIORITY_PER_ID 4
+
+/*
+ * Each hart context has a vector of interrupt enable bits associated with it.
+ * There's one bit for each interrupt source.
+ */
+#define CONTEXT_ENABLE_BASE 0x2000
+#define CONTEXT_ENABLE_SIZE 0x80
+
+/*
+ * Each hart context has a set of control registers associated with it.  Right
+ * now there's only two: a source priority threshold over which the hart will
+ * take an interrupt, and a register to claim interrupts.
+ */
+#define CONTEXT_BASE 0x200000
+#define CONTEXT_SIZE 0x1000
+#define CONTEXT_THRESHOLD 0x00
+#define CONTEXT_CLAIM 0x04
+
+static struct plic_handler plic_handlers[1];
+
+static struct plic_handler* plic_handler_get(void)
+{
+    return &plic_handlers[0];
+}
+
+/*
  * Each PLIC interrupt source can be assigned a priority by writing
  * to its 32-bit memory-mapped priority register.
  * The QEMU-virt (the same as FU540-C000) supports 7 levels of priority.
@@ -41,7 +72,9 @@ size_t plic_base = 0x0c000000L;
  */
 void plic_set_priority(int irq, int priority)
 {
-    *(uint32_t *)PLIC_PRIORITY(irq) = priority;
+    struct plic_handler *handler = plic_handler_get();
+
+    writel(priority, handler->base + PRIORITY_BASE + irq * PRIORITY_PER_ID);
 }
 
 /*
@@ -52,11 +85,6 @@ void plic_irq_enable(int irq)
 {
     int hart = __raw_hartid();
     *(uint32_t *)PLIC_ENABLE(hart) = ((*(uint32_t *)PLIC_ENABLE(hart)) | (1 << irq));
-#ifdef RISCV_VIRT64_S_MODE
-    set_csr(sie, read_csr(sie) | MIP_SEIP);
-#else
-    set_csr(mie, read_csr(mie) | MIP_MEIP);
-#endif
 }
 
 void plic_irq_disable(int irq)
@@ -92,9 +120,10 @@ void plic_set_threshold(int threshold)
  */
 int plic_claim(void)
 {
-    int hart = __raw_hartid();
-    int irq = *(uint32_t *)PLIC_CLAIM(hart);
-    return irq;
+    struct plic_handler *handler = plic_handler_get();
+    void *claim = handler->hart_base + CONTEXT_CLAIM;
+
+    return readl(claim);
 }
 
 /*
@@ -125,12 +154,21 @@ static void _set_sie(int hartid)
         plic_set_ie(i, 0xffffffff);
 }
 
+void plic_handler_init(struct plic_handler *handler, void *base, uint32_t context_id)
+{
+    handler->base = base;
+    handler->hart_base = base + CONTEXT_BASE + context_id * CONTEXT_SIZE;
+    handler->enable_base = base + CONTEXT_ENABLE_BASE + context_id * CONTEXT_ENABLE_SIZE;
+}
+
 void plic_init()
 {
     // PLIC takes up 64 MB space
     plic_base = (size_t)rt_ioremap((void *)plic_base, 64 * 1024 * 1024);
 
-    plic_set_threshold(0);
+    plic_handler_init(plic_handler_get(), plic_base, 1);
+
+   /// plic_set_threshold(0);
 
     for (int i = 0; i < CONFIG_IRQ_NR; i++)
     {
@@ -138,7 +176,9 @@ void plic_init()
     }
 
     // in a single core system, only current context was set
-    _set_sie(__raw_hartid());
+   // _set_sie(__raw_hartid());
+
+    set_csr(sie, MIP_SEIP);
 }
 
 extern struct rt_irq_desc irq_desc[MAX_HANDLERS];
