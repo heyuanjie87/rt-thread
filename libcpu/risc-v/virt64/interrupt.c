@@ -28,7 +28,7 @@
 #define PLIC_PHY_ADDR 0x0c000000L
 #endif
 
-static struct rt_irq_desc isr_table[INTERRUPTS_MAX];
+static struct rt_irq_desc  isr_table[INTERRUPTS_MAX];
 static struct plic_handler plic_handlers[1];
 
 rt_inline struct plic_handler *plic_handler_get(void)
@@ -44,7 +44,7 @@ static void plic_init(void)
     // PLIC takes up 64 MB space
     plic_base = rt_ioremap(plic_base, 64 * 1024 * 1024);
 #endif
-
+    /* skip contexts other than supervisor external interrupt */
     plic_handler_init(plic_handler_get(), plic_base, 1);
 
     plic_set_threshold(plic_handler_get(), 0);
@@ -104,7 +104,7 @@ rt_isr_handler_t rt_hw_interrupt_install(int vector, rt_isr_handler_t handler,
     old_handler = isr_table[IRQ_OFFSET + vector].handler;
 
     isr_table[IRQ_OFFSET + vector].handler = handler;
-    isr_table[IRQ_OFFSET + vector].param = param;
+    isr_table[IRQ_OFFSET + vector].param   = param;
 
     return old_handler;
 }
@@ -133,15 +133,15 @@ void rt_hw_interrupt_init(void)
 void handle_irq(void)
 {
     struct plic_handler *plic;
-    rt_isr_handler_t isr;
-    void *param;
-    int irq;
+    rt_isr_handler_t     isr;
+    void                *param;
+    int                  irq;
 
     plic = plic_handler_get();
 
     while ((irq = plic_claim(plic)))
     {
-        isr = isr_table[IRQ_OFFSET + irq].handler;
+        isr   = isr_table[IRQ_OFFSET + irq].handler;
         param = isr_table[IRQ_OFFSET + irq].param;
         if (isr)
         {

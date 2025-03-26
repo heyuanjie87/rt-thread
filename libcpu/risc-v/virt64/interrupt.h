@@ -11,11 +11,11 @@
 #ifndef INTERRUPT_H__
 #define INTERRUPT_H__
 
-#define IRQ_OFFSET          16
+#define IRQ_OFFSET 16
 #ifndef IRQ_MAX_NR
-#define IRQ_MAX_NR          200
+#define IRQ_MAX_NR 200
 #endif
-#define INTERRUPTS_MAX      (IRQ_OFFSET + IRQ_MAX_NR)
+#define INTERRUPTS_MAX (IRQ_OFFSET + IRQ_MAX_NR)
 
 enum
 {
@@ -34,7 +34,7 @@ enum
     EP_INSTRUCTION_PAGE_FAULT, /* page attr */
     EP_LOAD_PAGE_FAULT,        /* read data */
     EP_RESERVED14,
-    EP_STORE_PAGE_FAULT, /* write data */
+    EP_STORE_PAGE_FAULT,       /* write data */
 };
 
 void rt_hw_interrupt_init(void);
