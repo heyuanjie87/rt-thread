@@ -115,8 +115,9 @@ void plic_irq_disable(int irq)
  */
 void plic_set_threshold(int threshold)
 {
-    int hart = __raw_hartid();
-    *(uint32_t *)PLIC_THRESHOLD(hart) = threshold;
+    struct plic_handler *handler = plic_handler_get();
+
+    writel(threshold, handler->hart_base + CONTEXT_THRESHOLD);
 }
 
 /*
@@ -155,18 +156,6 @@ void plic_complete(int irq)
     void *claim = handler->hart_base + CONTEXT_CLAIM;
 
     writel(irq, claim);
-}
-
-void plic_set_ie(rt_uint32_t word_index, rt_uint32_t val)
-{
-    volatile void *plic_ie = (void *)(rt_ubase_t)(plic_base + PLIC_ENABLE_BASE + 0x80 + word_index * 4);
-    writel(val, plic_ie);
-}
-
-static void _set_sie(int hartid)
-{
-    for (size_t i = hartid * WORD_CNT_BYTE; i < 32; i++)
-        plic_set_ie(i, 0xffffffff);
 }
 
 void plic_handler_init(struct plic_handler *handler, void *base, uint32_t context_id)
