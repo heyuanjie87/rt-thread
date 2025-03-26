@@ -15,7 +15,8 @@
 #include "riscv.h"
 #include "interrupt.h"
 
-struct rt_irq_desc irq_desc[MAX_HANDLERS];
+static struct rt_irq_desc irq_desc[MAX_HANDLERS];
+static struct plic_handler plic_handlers[1];
 
 static rt_isr_handler_t rt_hw_interrupt_handle(rt_uint32_t vector, void *param)
 {
@@ -90,7 +91,11 @@ void rt_hw_interrupt_init()
 #endif
     }
 
+    plic_init();
     plic_set_threshold(0);
+
+    /* Enable supervisor external interrupts. */
+    set_csr(sie, SIE_SEIE);
 }
 
 /*

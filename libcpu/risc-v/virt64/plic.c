@@ -189,9 +189,4 @@ void plic_init()
     {
         plic_set_priority(i, 1);
     }
-
-    // in a single core system, only current context was set
-   // _set_sie(__raw_hartid());
-
-    set_csr(sie, MIP_SEIP);
 }
