@@ -77,9 +77,5 @@ void plic_set_threshold(int mthreshold);
 int  plic_claim(void);
 void plic_complete(int irq);
 
-void plic_set_thresh(uint32_t val);
-void plic_set_ie(uint32_t word_index, uint32_t val);
-void plic_init();
-void plic_handle_irq(void);
 
 #endif

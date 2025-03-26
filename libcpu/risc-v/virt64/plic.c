@@ -103,7 +103,7 @@ void plic_irq_disable(int irq)
 {
     struct plic_handler *handler = plic_handler_get();
     
-    plic_toggle(handler, irq, 1);}
+    plic_toggle(handler, irq, 1);
 }
 
 /*
@@ -194,18 +194,4 @@ void plic_init()
    // _set_sie(__raw_hartid());
 
     set_csr(sie, MIP_SEIP);
-}
-
-extern struct rt_irq_desc irq_desc[MAX_HANDLERS];
-/*
- * Handling an interrupt is a two-step process: first you claim the interrupt
- * by reading the claim register, then you complete the interrupt by writing
- * that source ID back to the same claim register.  This automatically enables
- * and disables the interrupt, so there's nothing else to do.
- */
-void plic_handle_irq(void)
-{
-    int plic_irq = plic_claim();
-    plic_complete(plic_irq);
-    irq_desc[plic_irq].handler(plic_irq, irq_desc[plic_irq].param);
 }
