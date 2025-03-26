@@ -8,25 +8,9 @@
  * 2021-05-20     bigmagic     first version
  * 2022-09-16     WangXiaoyao  Porting to rv64
  */
-#include <rthw.h>
-#include <rtthread.h>
-#include <stdint.h>
+#include <rtdef.h>
 #include "plic.h"
 #include <riscv_io.h>
-#include "encoding.h"
-#include <interrupt.h>
-
-#include <riscv.h>
-#include <string.h>
-#include <stdlib.h>
-
-#ifdef RT_USING_SMART
-#include <ioremap.h>
-#else
-#define rt_ioremap(addr, ...) (addr)
-#endif
-
-size_t plic_base = 0x0c000000L;
 
 /*
  * Each interrupt source has a priority register associated with it.
@@ -52,17 +36,10 @@ size_t plic_base = 0x0c000000L;
 #define CONTEXT_THRESHOLD 0x00
 #define CONTEXT_CLAIM 0x04
 
-static struct plic_handler plic_handlers[1];
-
-static struct plic_handler* plic_handler_get(void)
+static void plic_toggle(struct plic_handler *handler, unsigned int irq, int enable)
 {
-    return &plic_handlers[0];
-}
-
-static void plic_toggle(struct plic_handler *handler, uint32_t hwirq, int enable)
-{
-    uint32_t *reg = handler->enable_base + (hwirq / 32) * sizeof(uint32_t);
-    uint32_t hwirq_mask = 1 << (hwirq % 32);
+    void *reg = handler->enable_base + (irq / 32) * sizeof(unsigned int);
+    unsigned int hwirq_mask = 1 << (irq % 32);
 
     if (enable)
         writel(readl(reg) | hwirq_mask, reg);
@@ -81,10 +58,8 @@ static void plic_toggle(struct plic_handler *handler, uint32_t hwirq, int enable
  * the Interrupt ID; interrupts with the lowest ID have the highest
  * effective priority.
  */
-void plic_set_priority(int irq, int priority)
+void plic_set_priority(struct plic_handler *handler, int irq, int priority)
 {
-    struct plic_handler *handler = plic_handler_get();
-
     writel(priority, handler->base + PRIORITY_BASE + irq * PRIORITY_PER_ID);
 }
 
@@ -92,17 +67,13 @@ void plic_set_priority(int irq, int priority)
  * Each global interrupt can be enabled by setting the corresponding
  * bit in the enables registers.
  */
-void plic_irq_enable(int irq)
+void plic_irq_enable(struct plic_handler *handler, int irq)
 {
-    struct plic_handler *handler = plic_handler_get();
-    
     plic_toggle(handler, irq, 1);
 }
 
-void plic_irq_disable(int irq)
+void plic_irq_disable(struct plic_handler *handler, int irq)
 {
-    struct plic_handler *handler = plic_handler_get();
-    
     plic_toggle(handler, irq, 1);
 }
 
@@ -113,10 +84,8 @@ void plic_irq_disable(int irq)
  * non-zero priority, whereas a value of 7 masks all interrupts.
  * Notice, the threshold is global for PLIC, not for each interrupt source.
  */
-void plic_set_threshold(int threshold)
+void plic_set_threshold(struct plic_handler *handler, int threshold)
 {
-    struct plic_handler *handler = plic_handler_get();
-
     writel(threshold, handler->hart_base + CONTEXT_THRESHOLD);
 }
 
@@ -132,9 +101,8 @@ void plic_set_threshold(int threshold)
  *    the ID of the highest-priority pending interrupt or zero if there
  *    is no pending interrupt.
  */
-int plic_claim(void)
+int plic_claim(struct plic_handler *handler)
 {
-    struct plic_handler *handler = plic_handler_get();
     void *claim = handler->hart_base + CONTEXT_CLAIM;
 
     return readl(claim);
@@ -150,32 +118,16 @@ int plic_claim(void)
  *    is silently ignored.
  * RETURN VALUE: none
  */
-void plic_complete(int irq)
+void plic_complete(struct plic_handler *handler, int irq)
 {
-    struct plic_handler *handler = plic_handler_get();
     void *claim = handler->hart_base + CONTEXT_CLAIM;
 
     writel(irq, claim);
 }
 
-void plic_handler_init(struct plic_handler *handler, void *base, uint32_t context_id)
+void plic_handler_init(struct plic_handler *handler, void *base, unsigned int context_id)
 {
     handler->base = base;
     handler->hart_base = base + CONTEXT_BASE + context_id * CONTEXT_SIZE;
     handler->enable_base = base + CONTEXT_ENABLE_BASE + context_id * CONTEXT_ENABLE_SIZE;
-}
-
-void plic_init()
-{
-    // PLIC takes up 64 MB space
-    plic_base = (size_t)rt_ioremap((void *)plic_base, 64 * 1024 * 1024);
-
-    plic_handler_init(plic_handler_get(), plic_base, 1);
-
-   /// plic_set_threshold(0);
-
-    for (int i = 0; i < CONFIG_IRQ_NR; i++)
-    {
-        plic_set_priority(i, 1);
-    }
 }

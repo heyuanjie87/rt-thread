@@ -9,31 +9,46 @@
  * 2018/12/27     Jesven       Change irq enable/disable to cpu0
  */
 #include <plic.h>
-#include <mmu.h>
 #include "tick.h"
 #include "encoding.h"
 #include "riscv.h"
 #include "interrupt.h"
 
+#ifdef RT_USING_SMART
+#include <ioremap.h>
+#endif
+
 static struct rt_irq_desc irq_desc[MAX_HANDLERS];
 static struct plic_handler plic_handlers[1];
+
+rt_inline struct plic_handler* plic_handler_get(void)
+{
+    return &plic_handlers[0];
+}
+
+static void plic_init(void)
+{
+    void *plic_base = 0x0c000000L;
+
+#ifdef RT_USING_SMART
+    // PLIC takes up 64 MB space
+    plic_base = rt_ioremap(plic_base, 64 * 1024 * 1024);
+#endif
+
+    plic_handler_init(plic_handler_get(), plic_base, 1);
+
+   /// plic_set_threshold(0);
+
+  //  for (int i = 0; i < CONFIG_IRQ_NR; i++)
+    {
+       // plic_set_priority(i, 1);
+    }
+}
 
 static rt_isr_handler_t rt_hw_interrupt_handle(rt_uint32_t vector, void *param)
 {
     rt_kprintf("UN-handled interrupt %d occurred!!!\n", vector);
     return RT_NULL;
-}
-
-int rt_hw_plic_irq_enable(int irq_number)
-{
-    plic_irq_enable(irq_number);
-    return 0;
-}
-
-int rt_hw_plic_irq_disable(int irq_number)
-{
-    plic_irq_disable(irq_number);
-    return 0;
 }
 
 /**
@@ -42,9 +57,9 @@ int rt_hw_plic_irq_disable(int irq_number)
  */
 void rt_hw_interrupt_umask(int vector)
 {
-    plic_set_priority(vector, 1);
+    plic_set_priority(plic_handler_get(), vector, 1);
 
-    rt_hw_plic_irq_enable(vector);
+    plic_irq_enable(plic_handler_get(), vector);
 }
 
 /**
@@ -92,7 +107,7 @@ void rt_hw_interrupt_init()
     }
 
     plic_init();
-    plic_set_threshold(0);
+    plic_set_threshold(plic_handler_get(), 0);
 
     /* Enable supervisor external interrupts. */
     set_csr(sie, SIE_SEIE);
@@ -104,9 +119,25 @@ void rt_hw_interrupt_init()
  * that source ID back to the same claim register.  This automatically enables
  * and disables the interrupt, so there's nothing else to do.
  */
-void plic_handle_irq(void)
+void handle_irq(void)
 {
-    int plic_irq = plic_claim();
-    plic_complete(plic_irq);
-    irq_desc[plic_irq].handler(plic_irq, irq_desc[plic_irq].param);
+    struct plic_handler *plic;
+    int irq;
+
+    plic = plic_handler_get();
+
+    while ((irq = plic_claim(plic)))
+    {
+        rt_isr_handler_t isr;
+        void *param;
+
+        isr = irq_desc[irq].handler;
+        param = irq_desc[irq].param;
+        if (isr)
+        {
+            isr(irq, param);
+        }
+
+        plic_complete(plic, irq);
+    }
 }
