@@ -19,6 +19,15 @@
 #include <ioremap.h>
 #endif
 
+/* TODO define PLIC_PHY_ADDR in BSP and remove me */
+#ifdef C908_PLIC_PHY_ADDR
+#define PLIC_PHY_ADDR C908_PLIC_PHY_ADDR
+#elif defined(C906_PLIC_PHY_ADDR)
+#define PLIC_PHY_ADDR C906_PLIC_PHY_ADDR
+#elif !defined(PLIC_PHY_ADDR)
+#define PLIC_PHY_ADDR 0x0c000000L
+#endif
+
 static struct rt_irq_desc isr_table[INTERRUPTS_MAX];
 static struct plic_handler plic_handlers[1];
 
@@ -29,7 +38,7 @@ rt_inline struct plic_handler *plic_handler_get(void)
 
 static void plic_init(void)
 {
-    void *plic_base = (void *)0x0c000000L;
+    void *plic_base = (void *)PLIC_PHY_ADDR;
 
 #ifdef RT_USING_SMART
     // PLIC takes up 64 MB space
@@ -41,10 +50,9 @@ static void plic_init(void)
     plic_set_threshold(plic_handler_get(), 0);
 }
 
-static rt_isr_handler_t rt_hw_interrupt_handle(rt_uint32_t vector, void *param)
+static void rt_hw_interrupt_handle(int vector, void *param)
 {
     rt_kprintf("UN-handled interrupt %d occurred!!!\n", vector);
-    return RT_NULL;
 }
 
 /**
@@ -106,7 +114,7 @@ void rt_hw_interrupt_init(void)
     /* init exceptions table */
     for (int idx = 0; idx < INTERRUPTS_MAX; idx++)
     {
-        isr_table[idx].handler = (rt_isr_handler_t)rt_hw_interrupt_handle;
+        isr_table[idx].handler = rt_hw_interrupt_handle;
         isr_table[idx].param   = RT_NULL;
     }
 
