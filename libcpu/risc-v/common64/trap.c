@@ -304,7 +304,7 @@ void handle_trap(rt_ubase_t scause, rt_ubase_t stval, rt_ubase_t sepc,
         SCAUSE_S_EXTERNAL_INTR == (scause & 0xff))
     {
         rt_interrupt_enter();
-        plic_handle_irq();
+        handle_irq();
         rt_interrupt_leave();
     }
     else if ((SCAUSE_INTERRUPT | SCAUSE_S_TIMER_INTR) == scause)

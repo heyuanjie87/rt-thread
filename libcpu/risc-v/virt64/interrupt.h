@@ -11,10 +11,11 @@
 #ifndef INTERRUPT_H__
 #define INTERRUPT_H__
 
-#define MAX_HANDLERS 128
-
-#include <rthw.h>
-#include "stack.h"
+#define IRQ_OFFSET          16
+#ifndef IRQ_MAX_NR
+#define IRQ_MAX_NR          200
+#endif
+#define INTERRUPTS_MAX      (IRQ_OFFSET + IRQ_MAX_NR)
 
 enum
 {
@@ -36,11 +37,11 @@ enum
     EP_STORE_PAGE_FAULT, /* write data */
 };
 
-int rt_hw_plic_irq_enable(int irq_number);
-int rt_hw_plic_irq_disable(int irq_number);
 void rt_hw_interrupt_init(void);
 void rt_hw_interrupt_mask(int vector);
+void rt_hw_interrupt_umask(int vector);
 rt_isr_handler_t rt_hw_interrupt_install(int vector, rt_isr_handler_t handler, void *param, const char *name);
-void handle_trap(rt_ubase_t xcause, rt_ubase_t xtval, rt_ubase_t xepc, struct rt_hw_stack_frame *sp);
+
+void handle_irq(void);
 
 #endif
